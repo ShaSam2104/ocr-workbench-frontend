@@ -111,11 +111,6 @@ class _EmptyChatStateWidgetState extends State<EmptyChatStateWidget> {
                       updateCallback: () => safeSetState(() {}),
                       child: BookWidget(
                         label: 'Write Copy',
-                        icon: Icon(
-                          Icons.colorize,
-                          color: FlutterFlowTheme.of(context).primary,
-                          size: 20.0,
-                        ),
                         onClick: () async {
                           await widget.onItemPress?.call();
                         },
@@ -126,11 +121,6 @@ class _EmptyChatStateWidgetState extends State<EmptyChatStateWidget> {
                       updateCallback: () => safeSetState(() {}),
                       child: BookWidget(
                         label: 'Generate image',
-                        icon: Icon(
-                          Icons.grade,
-                          color: FlutterFlowTheme.of(context).primary,
-                          size: 20.0,
-                        ),
                         onClick: () async {
                           await widget.onItemPress?.call();
                         },
@@ -141,11 +131,6 @@ class _EmptyChatStateWidgetState extends State<EmptyChatStateWidget> {
                       updateCallback: () => safeSetState(() {}),
                       child: BookWidget(
                         label: 'Brainstorm ideas',
-                        icon: Icon(
-                          Icons.lightbulb_rounded,
-                          color: FlutterFlowTheme.of(context).primary,
-                          size: 20.0,
-                        ),
                         onClick: () async {
                           await widget.onItemPress?.call();
                         },
@@ -156,11 +141,6 @@ class _EmptyChatStateWidgetState extends State<EmptyChatStateWidget> {
                       updateCallback: () => safeSetState(() {}),
                       child: BookWidget(
                         label: 'Write code',
-                        icon: Icon(
-                          Icons.code,
-                          color: FlutterFlowTheme.of(context).primary,
-                          size: 20.0,
-                        ),
                         onClick: () async {
                           await widget.onItemPress?.call();
                         },

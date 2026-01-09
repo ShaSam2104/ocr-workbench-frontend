@@ -1,6 +1,7 @@
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'chapter_model.dart';
 export 'chapter_model.dart';
@@ -9,12 +10,10 @@ class ChapterWidget extends StatefulWidget {
   const ChapterWidget({
     super.key,
     String? label,
-    required this.icon,
     this.onClick,
   }) : this.label = label ?? 'Hello world';
 
   final String label;
-  final Widget? icon;
   final Future Function()? onClick;
 
   @override
@@ -81,7 +80,11 @@ class _ChapterWidgetState extends State<ChapterWidget> {
                 Row(
                   mainAxisSize: MainAxisSize.max,
                   children: [
-                    widget.icon!,
+                    FaIcon(
+                      FontAwesomeIcons.bookOpen,
+                      color: FlutterFlowTheme.of(context).primary,
+                      size: 20.0,
+                    ),
                     Text(
                       widget.label,
                       style: FlutterFlowTheme.of(context).bodyMedium.override(
