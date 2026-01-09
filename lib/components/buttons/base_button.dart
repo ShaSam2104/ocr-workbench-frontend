@@ -164,7 +164,9 @@ class _BaseButtonWidgetState extends State<BaseButtonWidget> {
         child: CircularProgressIndicator(
           strokeWidth: 2,
           valueColor: AlwaysStoppedAnimation<Color>(
-            widget.isPrimary ? Colors.white : theme.primary,
+            widget.isPrimary
+                ? theme.secondary
+                : theme.primary,
           ),
         ),
       );
@@ -177,9 +179,21 @@ class _BaseButtonWidgetState extends State<BaseButtonWidget> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(widget.icon),
+            Icon(
+              widget.icon,
+              color: widget.isPrimary
+                  ? theme.secondary
+                  : theme.primary,
+            ),
             const SizedBox(width: 8),
-            Text(widget.label),
+            Text(
+              widget.label,
+              style: TextStyle(
+                color: widget.isPrimary
+                    ? theme.secondary
+                    : theme.primary,
+              ),
+            ),
           ],
         ),
       );
@@ -187,7 +201,14 @@ class _BaseButtonWidgetState extends State<BaseButtonWidget> {
 
     return Padding(
       padding: widget.padding,
-      child: Text(widget.label),
+      child: Text(
+        widget.label,
+        style: TextStyle(
+          color: widget.isPrimary
+              ? theme.secondary
+              : theme.primary,
+        ),
+      ),
     );
   }
 
@@ -197,9 +218,9 @@ class _BaseButtonWidgetState extends State<BaseButtonWidget> {
     if (widget.isPrimary) {
       return ElevatedButton.styleFrom(
         backgroundColor: theme.primary,
-        foregroundColor: Colors.white,
+        foregroundColor: theme.secondary,
         disabledBackgroundColor: theme.primary.withValues(alpha: 0.5),
-        disabledForegroundColor: Colors.white.withValues(alpha: 0.5),
+        disabledForegroundColor: theme.secondary.withValues(alpha: 0.5),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(widget.borderRadius),
         ),
