@@ -1,6 +1,8 @@
 import '/components/chat/empty_chat_state/empty_chat_state_widget.dart';
 import '/components/modals/search_modal/search_modal_widget.dart';
+import '/components/modals/keyboard_shortcuts_modal.dart';
 import '/components/utils/attachments/attachments_widget.dart';
+import '/components/utils/global_keyboard_shortcuts.dart';
 import '/components/utils/base_input_field/base_input_field_widget.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
@@ -41,61 +43,86 @@ class _HomePageWidgetState extends State<HomePageWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        FocusScope.of(context).unfocus();
-        FocusManager.instance.primaryFocus?.unfocus();
+    return GlobalKeyboardShortcuts(
+      onCtrlK: () {
+        // Ctrl+K: Focus search modal
+        _model.showSearchModal = true;
+        safeSetState(() {});
       },
-      child: Scaffold(
-        key: scaffoldKey,
-        backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
-        body: SafeArea(
-          top: true,
-          child: Stack(
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.max,
-                children: [
-                  wrapWithModel(
-                    model: _model.bookSidebarModel,
-                    updateCallback: () => safeSetState(() {}),
-                    child: BookSidebarWidget(
-                      onNewBook: () async {
-                        _model.showEmptyChat = true;
-                        safeSetState(() {});
-                      },
-                      onItemSelect: () async {
-                        _model.showEmptyChat = false;
-                        _model.showResponseLoading = false;
-                        safeSetState(() {});
-                      },
-                      onSearch: () async {
-                        _model.showSearchModal = true;
-                        safeSetState(() {});
-                      },
+      onCtrlF: () {
+        // Ctrl+F: Focus search modal
+        _model.showSearchModal = true;
+        safeSetState(() {});
+      },
+      child: GestureDetector(
+        onTap: () {
+          FocusScope.of(context).unfocus();
+          FocusManager.instance.primaryFocus?.unfocus();
+        },
+        child: Scaffold(
+          key: scaffoldKey,
+          backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+          body: SafeArea(
+            top: true,
+            child: Stack(
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.max,
+                  children: [
+                    wrapWithModel(
+                      model: _model.bookSidebarModel,
+                      updateCallback: () => safeSetState(() {}),
+                      child: BookSidebarWidget(
+                        onNewBook: () async {
+                          _model.showEmptyChat = true;
+                          safeSetState(() {});
+                        },
+                        onItemSelect: () async {
+                          _model.showEmptyChat = false;
+                          _model.showResponseLoading = false;
+                          safeSetState(() {});
+                        },
+                        onSearch: () async {
+                          _model.showSearchModal = true;
+                          safeSetState(() {});
+                        },
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.max,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Padding(
-                          padding: EdgeInsetsDirectional.fromSTEB(
-                              24.0, 24.0, 24.0, 8.0),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.max,
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              FFButtonWidget(
-                                onPressed: () {
-                                  print('Button pressed ...');
-                                },
-                                text: 'Share',
-                                icon: Icon(
-                                  Icons.share,
-                                  size: 16.0,
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.max,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Padding(
+                            padding: EdgeInsetsDirectional.fromSTEB(
+                                24.0, 24.0, 24.0, 8.0),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.max,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Tooltip(
+                                  message: 'Keyboard shortcuts (Ctrl + ?)',
+                                  child: IconButton(
+                                    icon: const Icon(Icons.help_outline),
+                                    onPressed: () {
+                                      showDialog(
+                                        context: context,
+                                        builder: (context) =>
+                                            const KeyboardShortcutsModal(),
+                                      );
+                                    },
+                                  ),
                                 ),
+                                const SizedBox(width: 12),
+                                FFButtonWidget(
+                                  onPressed: () {
+                                    print('Button pressed ...');
+                                  },
+                                  text: 'Share',
+                                  icon: Icon(
+                                    Icons.share,
+                                    size: 16.0,
+                                  ),
                                 options: FFButtonOptions(
                                   height: 36.0,
                                   padding: EdgeInsetsDirectional.fromSTEB(
@@ -263,6 +290,7 @@ class _HomePageWidgetState extends State<HomePageWidget> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

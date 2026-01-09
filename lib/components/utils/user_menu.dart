@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
+import '/components/modals/keyboard_shortcuts_modal.dart';
 import '/app_state.dart';
 
 class UserMenu extends StatefulWidget {
@@ -41,6 +42,11 @@ class _UserMenuState extends State<UserMenu> {
       label: 'Theme',
       value: 'theme',
       hasSubMenu: true,
+    ),
+    MenuItemData(
+      icon: Icons.help_outline,
+      label: 'Keyboard Shortcuts',
+      value: 'help',
     ),
     MenuItemData(
       icon: Icons.logout,
@@ -370,6 +376,13 @@ class _UserMenuState extends State<UserMenu> {
         break;
       case 'theme':
         _toggleTheme();
+        break;
+      case 'help':
+        Navigator.pop(context);
+        showDialog(
+          context: context,
+          builder: (context) => const KeyboardShortcutsModal(),
+        );
         break;
       case 'logout':
         _logout();
