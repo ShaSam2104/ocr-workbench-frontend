@@ -214,6 +214,42 @@ bool get isWeb => kIsWeb;
 const kBreakpointSmall = 479.0;
 const kBreakpointMedium = 767.0;
 const kBreakpointLarge = 991.0;
+
+/// Material Design 3 - Responsive Padding/Margin Utilities
+/// Returns responsive padding based on device screen size:
+/// - Mobile (< 600dp): 8.0
+/// - Tablet (600dp - 1200dp): 16.0
+/// - Desktop (>= 1200dp): 24.0
+EdgeInsets getResponsivePadding(BuildContext context) {
+  final width = MediaQuery.sizeOf(context).width;
+  if (width < 600) {
+    return const EdgeInsets.all(8.0);
+  } else if (width < 1200) {
+    return const EdgeInsets.all(16.0);
+  } else {
+    return const EdgeInsets.all(24.0);
+  }
+}
+
+/// Returns a responsive width value based on device screen size:
+/// - Mobile (< 600dp): returns mobileWidth
+/// - Tablet (600dp - 1200dp): returns tabletWidth
+/// - Desktop (>= 1200dp): returns desktopWidth
+double getResponsiveWidth(
+  BuildContext context,
+  double mobileWidth,
+  double tabletWidth,
+  double desktopWidth,
+) {
+  final width = MediaQuery.sizeOf(context).width;
+  if (width < 600) {
+    return mobileWidth;
+  } else if (width < 1200) {
+    return tabletWidth;
+  } else {
+    return desktopWidth;
+  }
+}
 bool isMobileWidth(BuildContext context) =>
     MediaQuery.sizeOf(context).width < kBreakpointSmall;
 bool responsiveVisibility({

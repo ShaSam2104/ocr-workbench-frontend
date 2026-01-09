@@ -7,6 +7,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const kThemeModeKey = '__theme_mode__';
 
+/// Material Design 3 - Responsive Design Breakpoints
+const int MOBILE_BREAKPOINT = 600;
+const int TABLET_BREAKPOINT = 1200;
+
 SharedPreferences? _prefs;
 
 abstract class FlutterFlowTheme {
@@ -57,6 +61,26 @@ abstract class FlutterFlowTheme {
   late Color info;
 
   late Color borderColor;
+
+  /// Keyboard/Focus ring color - primary with 50% opacity
+  Color get keyboardColor => primary.withValues(alpha: 0.5);
+
+  /// Material Design 3 - Responsive Design Helper Methods
+  /// Returns true if the device width is less than the mobile breakpoint (600dp)
+  bool isMobile(BuildContext context) {
+    return MediaQuery.sizeOf(context).width < MOBILE_BREAKPOINT;
+  }
+
+  /// Returns true if the device width is between mobile and tablet breakpoints (600dp - 1200dp)
+  bool isTablet(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    return width >= MOBILE_BREAKPOINT && width < TABLET_BREAKPOINT;
+  }
+
+  /// Returns true if the device width is greater than or equal to the tablet breakpoint (1200dp+)
+  bool isDesktop(BuildContext context) {
+    return MediaQuery.sizeOf(context).width >= TABLET_BREAKPOINT;
+  }
 
   @Deprecated('Use displaySmallFamily instead')
   String get title1Family => displaySmallFamily;
