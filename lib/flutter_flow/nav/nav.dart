@@ -77,25 +77,79 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
       debugLogDiagnostics: true,
       refreshListenable: appStateNotifier,
       navigatorKey: appNavigatorKey,
-      errorBuilder: (context, state) =>
-          appStateNotifier.loggedIn ? HomePageWidget() : SignInPageWidget(),
+      errorBuilder: (context, state) {
+        debugPrint(
+          'GoRouter Error: ${state.error}, uri: ${state.uri}',
+        );
+        return _ErrorPageWidget(
+          error: state.error?.toString() ?? 'Unknown error',
+          uri: state.uri.toString(),
+        );
+      },
+      redirect: (BuildContext context, GoRouterState state) {
+        final isLoading = appStateNotifier.loading;
+        final isLoggedIn = appStateNotifier.loggedIn;
+        final uri = state.uri.toString();
+
+        debugPrint(
+          'GoRouter Redirect Check: uri=$uri, loggedIn=$isLoggedIn, loading=$isLoading',
+        );
+
+        // If still loading, don't redirect
+        if (isLoading) {
+          return null;
+        }
+
+        // Redirect authenticated users from login page to home
+        if (isLoggedIn && (uri == '/' || uri == '/signInPage')) {
+          debugPrint('Redirecting logged-in user from $uri to /homePage');
+          return '/homePage';
+        }
+
+        // Redirect unauthenticated users trying to access protected routes
+        if (!isLoggedIn && uri != '/' && uri != '/signInPage') {
+          debugPrint('Redirecting unauthenticated user from $uri to /signInPage');
+          appStateNotifier.setRedirectLocationIfUnset(uri);
+          return '/signInPage';
+        }
+
+        // Redirect root path based on auth state
+        if (uri == '/') {
+          final destination = isLoggedIn ? '/homePage' : '/signInPage';
+          debugPrint('Redirecting root (/) to $destination');
+          return destination;
+        }
+
+        return null;
+      },
       routes: [
         FFRoute(
           name: '_initialize',
           path: '/',
-          builder: (context, _) =>
-              appStateNotifier.loggedIn ? HomePageWidget() : SignInPageWidget(),
+          builder: (context, _) => appStateNotifier.loggedIn
+              ? HomePageWidget()
+              : SignInPageWidget(),
         ),
         FFRoute(
-          name: HomePageWidget.routeName,
-          path: HomePageWidget.routePath,
-          builder: (context, params) => HomePageWidget(),
-        ),
-        FFRoute(
-          name: SignInPageWidget.routeName,
-          path: SignInPageWidget.routePath,
+          name: 'SignInPage',
+          path: '/signInPage',
           builder: (context, params) => SignInPageWidget(),
-        )
+        ),
+        FFRoute(
+          name: 'HomePage',
+          path: '/homePage',
+          requireAuth: true,
+          asyncParams: {
+            'book_id': (n) async => int.tryParse(n),
+            'chapter_id': (n) async => int.tryParse(n),
+          },
+          builder: (context, params) {
+            debugPrint(
+              'Building HomePage with params: bookId=${params.getParam('book_id', ParamType.int)}, chapterId=${params.getParam('chapter_id', ParamType.int)}',
+            );
+            return HomePageWidget();
+          },
+        ),
       ].map((r) => r.toRoute(appStateNotifier)).toList(),
     );
 
@@ -108,6 +162,44 @@ extension NavParamExtensions on Map<String, String?> {
 }
 
 extension NavigationExtensions on BuildContext {
+  /// Navigate to home page with optional book and chapter IDs
+  void goToHomePage({
+    int? bookId,
+    int? chapterId,
+  }) {
+    final queryParams = <String, String>{};
+    if (bookId != null) queryParams['book_id'] = bookId.toString();
+    if (chapterId != null) queryParams['chapter_id'] = chapterId.toString();
+
+    debugPrint(
+      'Navigating to HomePage with params: bookId=$bookId, chapterId=$chapterId',
+    );
+
+    go(
+      '/homePage',
+      extra: queryParams.isNotEmpty ? queryParams : null,
+    );
+  }
+
+  /// Push to home page with optional book and chapter IDs
+  void pushToHomePage({
+    int? bookId,
+    int? chapterId,
+  }) {
+    final queryParams = <String, String>{};
+    if (bookId != null) queryParams['book_id'] = bookId.toString();
+    if (chapterId != null) queryParams['chapter_id'] = chapterId.toString();
+
+    debugPrint(
+      'Pushing to HomePage with params: bookId=$bookId, chapterId=$chapterId',
+    );
+
+    pushNamed(
+      'HomePage',
+      queryParameters: queryParams,
+    );
+  }
+
   void goNamedAuth(
     String name,
     bool mounted, {
@@ -362,5 +454,105 @@ extension GoRouterLocationExtension on GoRouter {
         ? lastMatch.matches
         : routerDelegate.currentConfiguration;
     return matchList.uri.toString();
+  }
+}
+/// Error page widget for handling routing errors and invalid routes
+class _ErrorPageWidget extends StatelessWidget {
+  final String error;
+  final String uri;
+
+  const _ErrorPageWidget({
+    required this.error,
+    required this.uri,
+  });
+
+  bool get is404 => uri.isEmpty || !_isValidRoute(uri);
+
+  bool _isValidRoute(String uri) {
+    const validRoutes = [
+      '/',
+      '/signInPage',
+      '/homePage',
+    ];
+    return validRoutes.any((route) => uri.startsWith(route));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+
+    debugPrint('Error Page: $error, uri: $uri, is404: $is404');
+
+    return Scaffold(
+      backgroundColor: theme.primaryBackground,
+      appBar: AppBar(
+        title: Text(
+          is404 ? 'Page Not Found' : 'Error',
+          style: theme.titleLarge,
+        ),
+        backgroundColor: theme.primary,
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  is404 ? Icons.error_outline : Icons.warning_outlined,
+                  size: 80,
+                  color: is404 ? theme.error : theme.warning,
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  is404 ? '404: Page Not Found' : 'Oops, Something Went Wrong',
+                  style: theme.headlineSmall.copyWith(
+                    color: is404 ? theme.error : theme.warning,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  is404
+                      ? 'The route "$uri" does not exist.'
+                      : 'An error occurred: $error',
+                  style: theme.bodyMedium.copyWith(
+                    color: theme.secondaryText,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        debugPrint('Navigating back from error page');
+                        context.go('/');
+                      },
+                      icon: const Icon(Icons.home),
+                      label: const Text('Go Home'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        debugPrint('Retrying from error page');
+                        context.go(uri);
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
