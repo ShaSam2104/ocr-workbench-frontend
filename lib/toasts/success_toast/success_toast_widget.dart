@@ -1,6 +1,7 @@
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'success_toast_model.dart';
 export 'success_toast_model.dart';
@@ -17,8 +18,12 @@ class SuccessToastWidget extends StatefulWidget {
   State<SuccessToastWidget> createState() => _SuccessToastWidgetState();
 }
 
-class _SuccessToastWidgetState extends State<SuccessToastWidget> {
+class _SuccessToastWidgetState extends State<SuccessToastWidget>
+    with SingleTickerProviderStateMixin {
   late SuccessToastModel _model;
+  late AnimationController _animationController;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _fadeAnimation;
 
   @override
   void setState(VoidCallback callback) {
@@ -30,114 +35,153 @@ class _SuccessToastWidgetState extends State<SuccessToastWidget> {
   void initState() {
     super.initState();
     _model = createModel(context, () => SuccessToastModel());
+
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.8),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut));
+
+    _fadeAnimation = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut));
+
+    _animationController.forward();
   }
 
   @override
   void dispose() {
     _model.maybeDispose();
-
+    _animationController.dispose();
     super.dispose();
+  }
+
+  void _dismiss() {
+    Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     return Align(
       alignment: AlignmentDirectional(0.0, 1.0),
-      child: Padding(
-        padding: EdgeInsetsDirectional.fromSTEB(10.0, 0.0, 10.0, 75.0),
-        child: Container(
-          width: MediaQuery.sizeOf(context).width * 0.92,
-          constraints: BoxConstraints(
-            maxWidth: 400.0,
-          ),
-          decoration: BoxDecoration(
-            color: FlutterFlowTheme.of(context).secondaryBackground,
-            borderRadius: BorderRadius.circular(6.0),
-            border: Border.all(
-              color: FlutterFlowTheme.of(context).borderColor,
-              width: 0.5,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.max,
-                children: [
-                  Icon(
-                    Icons.check_circle_outline_outlined,
-                    color: Colors.green,
-                    size: 18.0,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: Padding(
+            padding: EdgeInsetsDirectional.fromSTEB(10.0, 0.0, 10.0, 75.0),
+            child: Focus(
+              onKeyEvent: (node, event) {
+                if (HardwareKeyboard.instance
+                    .isLogicalKeyPressed(LogicalKeyboardKey.escape)) {
+                  _dismiss();
+                  return KeyEventResult.handled;
+                }
+                return KeyEventResult.ignored;
+              },
+              child: Container(
+                width: MediaQuery.sizeOf(context).width * 0.92,
+                constraints: BoxConstraints(
+                  maxWidth: 400.0,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDFF2D8),
+                  borderRadius: BorderRadius.circular(8.0),
+                  border: Border.all(
+                    color: const Color(0xFFD6E9C6),
+                    width: 1,
                   ),
-                  Text(
-                    'Success',
-                    style: FlutterFlowTheme.of(context).bodyLarge.override(
-                          font: GoogleFonts.outfit(
-                            fontWeight: FontWeight.w500,
-                            fontStyle: FlutterFlowTheme.of(context)
-                                .bodyLarge
-                                .fontStyle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.max,
+                      children: [
+                        Icon(
+                          Icons.check_circle,
+                          color: const Color(0xFF3C763D),
+                          size: 20.0,
+                        ),
+                        Text(
+                          'Success',
+                          style: FlutterFlowTheme.of(context)
+                              .bodyLarge
+                              .override(
+                                font: GoogleFonts.outfit(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                color: const Color(0xFF3C763D),
+                                fontSize: 14.0,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                        Expanded(
+                          child: Align(
+                            alignment: AlignmentDirectional(1.0, 0.0),
+                            child: InkWell(
+                              splashColor: Colors.transparent,
+                              focusColor: Colors.transparent,
+                              hoverColor: Colors.transparent,
+                              highlightColor: Colors.transparent,
+                              onTap: _dismiss,
+                              child: Icon(
+                                Icons.close,
+                                color: const Color(0xFF3C763D)
+                                    .withValues(alpha: 0.6),
+                                size: 18.0,
+                              ),
+                            ),
                           ),
-                          color: Colors.green,
-                          fontSize: 14.0,
-                          letterSpacing: 0.0,
-                          fontWeight: FontWeight.w500,
-                          fontStyle:
-                              FlutterFlowTheme.of(context).bodyLarge.fontStyle,
                         ),
-                  ),
-                  Expanded(
-                    child: Align(
-                      alignment: AlignmentDirectional(1.0, 0.0),
-                      child: InkWell(
-                        splashColor: Colors.transparent,
-                        focusColor: Colors.transparent,
-                        hoverColor: Colors.transparent,
-                        highlightColor: Colors.transparent,
-                        onTap: () async {
-                          Navigator.pop(context);
-                        },
-                        child: Icon(
-                          Icons.cancel_rounded,
-                          color: FlutterFlowTheme.of(context).primaryText,
-                          size: 16.0,
+                      ]
+                          .divide(SizedBox(width: 8.0))
+                          .addToStart(SizedBox(width: 10.0))
+                          .addToEnd(SizedBox(width: 10.0)),
+                    ),
+                    Padding(
+                      padding:
+                          EdgeInsetsDirectional.fromSTEB(12.0, 0.0, 10.0, 0.0),
+                      child: Text(
+                        valueOrDefault<String>(
+                          widget.notificationDescription,
+                          'Operation completed successfully',
                         ),
+                        style: FlutterFlowTheme.of(context)
+                            .labelMedium
+                            .override(
+                              font: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w400,
+                              ),
+                              color: const Color(0xFF3C763D)
+                                  .withValues(alpha: 0.9),
+                              fontSize: 13.0,
+                              fontWeight: FontWeight.w400,
+                            ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ),
-                ]
-                    .divide(SizedBox(width: 8.0))
-                    .addToStart(SizedBox(width: 10.0))
-                    .addToEnd(SizedBox(width: 10.0)),
-              ),
-              Padding(
-                padding: EdgeInsetsDirectional.fromSTEB(12.0, 0.0, 10.0, 0.0),
-                child: Text(
-                  valueOrDefault<String>(
-                    widget.notificationDescription,
-                    'This is a demo toast notification',
-                  ),
-                  style: FlutterFlowTheme.of(context).labelMedium.override(
-                        font: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.w500,
-                          fontStyle: FlutterFlowTheme.of(context)
-                              .labelMedium
-                              .fontStyle,
-                        ),
-                        color: FlutterFlowTheme.of(context).primaryText,
-                        fontSize: 14.0,
-                        letterSpacing: 0.0,
-                        fontWeight: FontWeight.w500,
-                        fontStyle:
-                            FlutterFlowTheme.of(context).labelMedium.fontStyle,
-                      ),
+                  ]
+                      .divide(SizedBox(height: 6.0))
+                      .addToStart(SizedBox(height: 10.0))
+                      .addToEnd(SizedBox(height: 10.0)),
                 ),
               ),
-            ]
-                .divide(SizedBox(height: 5.0))
-                .addToStart(SizedBox(height: 10.0))
-                .addToEnd(SizedBox(height: 10.0)),
+            ),
           ),
         ),
       ),
