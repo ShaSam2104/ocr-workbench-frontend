@@ -1059,28 +1059,27 @@ class _SignInPageWidgetState extends State<SignInPageWidget>
                                                                 .routeName,
                                                             context.mounted);
                                                   } else {
-                                                    await action_blocks
-                                                        .errorToast(
-                                                      context,
-                                                      notificationDescription:
-                                                          valueOrDefault<
-                                                              String>(
-                                                        getJsonField(
-                                                          (_model.apiResultnbe
-                                                                  ?.jsonBody ??
-                                                              ''),
-                                                          r'''$.detail''',
-                                                        )?.toString(),
-                                                        'Some error occured please try again later!',
-                                                      ),
-                                                    );
-                                                    Navigator.pop(context);
+                                                    if (mounted) {
+                                                      await action_blocks
+                                                          .errorToast(
+                                                        context,
+                                                        notificationDescription:
+                                                            valueOrDefault<
+                                                                String>(
+                                                              getJsonField(
+                                                                (_model.apiResultnbe
+                                                                        ?.jsonBody ??
+                                                                    ''),
+                                                                r'''$.detail''',
+                                                              )?.toString(),
+                                                              'Some error occured please try again later!',
+                                                            ),
+                                                      );
+                                                    }
                                                   }
                                                 }
 
                                                 _navigate();
-
-                                                safeSetState(() {});
                                               },
                                               text: 'Sign in',
                                               options: FFButtonOptions(

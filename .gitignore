@@ -1,3 +1,5 @@
 .github/agents/frontend.agent.md
 docs/*
-.dart_tool/version
+.dart_tool/*
+.dart_tool/chrome-device/Default/BrowsingTopicsState
+build/*
