@@ -336,7 +336,7 @@ class _KeyboardShortcutsModalState extends State<KeyboardShortcutsModal> {
                     ),
                   ),
                   child: Text(
-                    shortcut.key,
+                    shortcut.displayKey,
                     style: theme.bodySmall.copyWith(
                       color: Color(colorValue),
                       fontWeight: FontWeight.w600,
@@ -384,7 +384,7 @@ class _KeyboardShortcutsModalState extends State<KeyboardShortcutsModal> {
               ),
             ),
             child: Text(
-              shortcut.key,
+              shortcut.displayKey,
               style: theme.bodySmall.copyWith(
                 color: Color(colorValue),
                 fontWeight: FontWeight.w600,

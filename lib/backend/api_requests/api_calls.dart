@@ -12,7 +12,7 @@ const _kPrivateApiFunctionName = 'ffPrivateApiCall';
 /// Start OCR Workbench API Group Code
 
 class OCRWorkbenchAPIGroup {
-  static String getBaseUrl() => 'http://localhost:8000';
+  static String getBaseUrl() => 'http://localhost:8001';
   static Map<String, String> headers = {};
   static LoginCall loginCall = LoginCall();
   static LogoutCall logoutCall = LogoutCall();

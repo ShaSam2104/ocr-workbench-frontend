@@ -1,5 +1,8 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+
 /// Centralized keyboard shortcuts reference for the entire application
 /// Organize shortcuts by category for easy discovery and UI display
+/// Automatically shows Cmd on Mac, Ctrl on Windows/Linux
 class KeyboardShortcut {
   final String key;
   final String description;
@@ -12,6 +15,15 @@ class KeyboardShortcut {
     required this.category,
     this.isModifier = false,
   });
+
+  /// Get the display key with platform-specific modifier
+  String get displayKey {
+    final isMac = defaultTargetPlatform == TargetPlatform.macOS;
+    if (key.contains('Ctrl')) {
+      return key.replaceAll('Ctrl', isMac ? 'Cmd' : 'Ctrl');
+    }
+    return key;
+  }
 }
 
 class KeyboardShortcutsReference {

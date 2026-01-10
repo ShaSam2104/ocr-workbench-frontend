@@ -124,14 +124,14 @@ class _ImageDetailModalState extends State<ImageDetailModal> {
     if (confirmed == true) {
       widget.onDelete?.call();
       if (mounted) {
-        Navigator.pop(context);
+        if (Navigator.canPop(context)) Navigator.pop(context);
       }
     }
   }
 
   void _handleKeyEvent(RawKeyEvent event) {
     if (event.isKeyPressed(LogicalKeyboardKey.escape)) {
-      Navigator.pop(context);
+      if (Navigator.canPop(context)) Navigator.pop(context);
     } else if (event.isKeyPressed(LogicalKeyboardKey.keyC) &&
         HardwareKeyboard.instance
             .isLogicalKeyPressed(LogicalKeyboardKey.controlLeft)) {

@@ -1,25 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kIsWeb;
 import '/components/modals/keyboard_shortcuts_modal.dart';
 
 /// Global keyboard shortcuts manager
-/// Handles global app-wide keyboard shortcuts
-/// 
-/// Usage: Wrap your main content with this widget
-/// Example:
-/// ```dart
-/// @override
-/// Widget build(BuildContext context) {
-///   return GlobalKeyboardShortcuts(
-///     child: Scaffold(...),
-///   );
-/// }
-/// ```
 class GlobalKeyboardShortcuts extends StatefulWidget {
   final Widget child;
-  final VoidCallback? onCtrlK; // Called when Ctrl+K is pressed
-  final VoidCallback? onCtrlE; // Called when Ctrl+E is pressed
-  final VoidCallback? onCtrlF; // Called when Ctrl+F is pressed
+  final VoidCallback? onCtrlK;
+  final VoidCallback? onCtrlE;
+  final VoidCallback? onCtrlF;
+  final VoidCallback? onToggleTheme;
+  final VoidCallback? onShowHelp;
 
   const GlobalKeyboardShortcuts({
     super.key,
@@ -27,69 +18,89 @@ class GlobalKeyboardShortcuts extends StatefulWidget {
     this.onCtrlK,
     this.onCtrlE,
     this.onCtrlF,
+    this.onToggleTheme,
+    this.onShowHelp,
   });
 
   @override
-  State<GlobalKeyboardShortcuts> createState() =>
-      _GlobalKeyboardShortcutsState();
+  State<GlobalKeyboardShortcuts> createState() => _GlobalKeyboardShortcutsState();
 }
 
 class _GlobalKeyboardShortcutsState extends State<GlobalKeyboardShortcuts> {
-  late FocusNode _focusNode;
+  final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
-    _focusNode = FocusNode();
+    HardwareKeyboard.instance.addHandler(_handleKeyEvent);
+    print('🔧 Hardware keyboard handler registered');
   }
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
     _focusNode.dispose();
     super.dispose();
   }
 
-  void _handleKeyEvent(RawKeyEvent event) {
-    if (event is RawKeyDownEvent) {
-      // Ctrl + ? (Shift + /) - Show keyboard shortcuts help
-      if (event.isControlPressed &&
-          event.logicalKey == LogicalKeyboardKey.slash) {
-        _showKeyboardShortcutsModal();
-      }
+  bool _handleKeyEvent(KeyEvent event) {
+    print('⌨️ RAW KEY EVENT: ${event.runtimeType} - ${event.logicalKey.keyLabel}');
+    
+    if (event is! KeyDownEvent) return false;
 
-      // Ctrl + K - Focus search (custom callback)
-      if (event.isControlPressed &&
-          event.logicalKey == LogicalKeyboardKey.keyK) {
-        widget.onCtrlK?.call();
-      }
+    final isMac = defaultTargetPlatform == TargetPlatform.macOS;
+    final isModifierPressed = isMac 
+        ? HardwareKeyboard.instance.isMetaPressed 
+        : HardwareKeyboard.instance.isControlPressed;
+    final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
 
-      // Ctrl + E - Open export (custom callback)
-      if (event.isControlPressed &&
-          event.logicalKey == LogicalKeyboardKey.keyE) {
-        widget.onCtrlE?.call();
-      }
+    print('⌨️ Modifiers: Cmd/Ctrl=$isModifierPressed, Shift=$isShiftPressed');
 
-      // Ctrl + F - Open search (custom callback)
-      if (event.isControlPressed &&
-          event.logicalKey == LogicalKeyboardKey.keyF) {
-        widget.onCtrlF?.call();
-      }
+    // Cmd/Ctrl + K
+    if (isModifierPressed && !isShiftPressed && event.logicalKey == LogicalKeyboardKey.keyK) {
+      print('⌨️ Cmd/Ctrl+K detected!');
+      widget.onCtrlK?.call();
+      return true;
     }
-  }
 
-  void _showKeyboardShortcutsModal() {
-    showDialog(
-      context: context,
-      builder: (context) => const KeyboardShortcutsModal(),
-    );
+    // Cmd/Ctrl + F or Cmd/Ctrl + Shift + F
+    if (isModifierPressed && event.logicalKey == LogicalKeyboardKey.keyF) {
+      print('⌨️ Cmd/Ctrl+F detected!');
+      widget.onCtrlF?.call();
+      return true;
+    }
+
+    // Cmd/Ctrl + E
+    if (isModifierPressed && !isShiftPressed && event.logicalKey == LogicalKeyboardKey.keyE) {
+      print('⌨️ Cmd/Ctrl+E detected!');
+      widget.onCtrlE?.call();
+      return true;
+    }
+
+    // Cmd/Ctrl + Shift + L
+    if (isModifierPressed && isShiftPressed && event.logicalKey == LogicalKeyboardKey.keyL) {
+      print('⌨️ Cmd/Ctrl+Shift+L detected!');
+      widget.onToggleTheme?.call();
+      return true;
+    }
+
+    // Cmd/Ctrl + Shift + ?
+    if (isModifierPressed && isShiftPressed && event.logicalKey == LogicalKeyboardKey.slash) {
+      print('⌨️ Cmd/Ctrl+Shift+? detected!');
+      widget.onShowHelp?.call();
+      return true;
+    }
+
+    return false;
   }
 
   @override
   Widget build(BuildContext context) {
-    return RawKeyboardListener(
-      focusNode: _focusNode,
-      onKey: _handleKeyEvent,
-      child: widget.child,
-    );
+    print('🔧 GlobalKeyboardShortcuts: Building widget');
+    print('🔧 Platform: ${defaultTargetPlatform}');
+    print('🔧 Callbacks registered: K=${widget.onCtrlK != null}, F=${widget.onCtrlF != null}, E=${widget.onCtrlE != null}, Theme=${widget.onToggleTheme != null}, Help=${widget.onShowHelp != null}');
+    
+    return widget.child;
   }
 }
+

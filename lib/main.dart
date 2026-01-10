@@ -72,6 +72,22 @@ class _MyAppState extends State<MyApp> {
       Duration(milliseconds: 1000),
       () => _appStateNotifier.stopShowingSplashImage(),
     );
+
+    // Listen to FFAppState theme changes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final appState = Provider.of<FFAppState>(context, listen: false);
+      appState.addListener(() {
+        final newThemeMode = appState.isLightMode ? ThemeMode.light : ThemeMode.dark;
+        if (_themeMode != newThemeMode) {
+          setThemeMode(newThemeMode);
+        }
+      });
+      // Initialize theme from FFAppState
+      final initialThemeMode = appState.isLightMode ? ThemeMode.light : ThemeMode.dark;
+      if (_themeMode != initialThemeMode) {
+        setThemeMode(initialThemeMode);
+      }
+    });
   }
 
   void setThemeMode(ThemeMode mode) => safeSetState(() {

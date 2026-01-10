@@ -168,24 +168,24 @@ class LightModeTheme extends FlutterFlowTheme {
   @Deprecated('Use tertiary instead')
   Color get tertiaryColor => tertiary;
 
-  late Color primary = const Color(0xFF198A4E);
-  late Color secondary = const Color(0xFF39D2C0);
-  late Color tertiary = const Color(0xFFEE8B60);
-  late Color alternate = const Color(0xFFE0E3E7);
-  late Color primaryText = const Color(0xFFF8F8F8);
-  late Color secondaryText = const Color(0x9AF8F8F8);
-  late Color primaryBackground = const Color(0xFF1E1E1F);
-  late Color secondaryBackground = const Color(0xFF262627);
-  late Color accent1 = const Color(0x4C4B39EF);
-  late Color accent2 = const Color(0x4D39D2C0);
-  late Color accent3 = const Color(0x4DEE8B60);
-  late Color accent4 = const Color(0xFF414144);
-  late Color success = const Color(0xFF249689);
-  late Color warning = const Color(0xFFF9CF58);
-  late Color error = const Color(0xFFFF5963);
-  late Color info = const Color(0xFFFFFFFF);
+  late Color primary = const Color(0xFF2383E2);  // Notion blue
+  late Color secondary = const Color(0xFF00D4AA);  // Notion teal
+  late Color tertiary = const Color(0xFFE16259);  // Notion coral
+  late Color alternate = const Color(0xFFE3E2E0);  // Notion gray border
+  late Color primaryText = const Color(0xFF37352F);  // Notion dark text
+  late Color secondaryText = const Color(0xFF6B6B6B);  // Notion secondary text
+  late Color primaryBackground = const Color(0xFFFFFFFF);  // Pure white
+  late Color secondaryBackground = const Color(0xFFF7F6F3);  // Notion light gray
+  late Color accent1 = const Color(0xFFE9F5FF);  // Light blue tint
+  late Color accent2 = const Color(0xFFE5F7F3);  // Light teal tint
+  late Color accent3 = const Color(0xFFFFF3F0);  // Light coral tint
+  late Color accent4 = const Color(0xFFEBEAE6);  // Notion divider
+  late Color success = const Color(0xFF0F7B6C);  // Success green
+  late Color warning = const Color(0xFFFFA344);  // Warning orange
+  late Color error = const Color(0xFFE03E3E);  // Error red
+  late Color info = const Color(0xFF2383E2);  // Info blue
 
-  late Color borderColor = const Color(0xFF868787);
+  late Color borderColor = const Color(0xFFE3E2E0);  // Subtle border
 }
 
 abstract class Typography {
@@ -356,24 +356,24 @@ class DarkModeTheme extends FlutterFlowTheme {
   @Deprecated('Use tertiary instead')
   Color get tertiaryColor => tertiary;
 
-  late Color primary = const Color(0xFF198A4E);
-  late Color secondary = const Color(0xFF39D2C0);
-  late Color tertiary = const Color(0xFFEE8B60);
-  late Color alternate = const Color(0xFFE0E3E7);
-  late Color primaryText = const Color(0xFFF8F8F8);
-  late Color secondaryText = const Color(0x9AF8F8F8);
-  late Color primaryBackground = const Color(0xFF1E1E1F);
-  late Color secondaryBackground = const Color(0xFF262627);
-  late Color accent1 = const Color(0xFF262627);
-  late Color accent2 = const Color(0x4D39D2C0);
-  late Color accent3 = const Color(0x4DEE8B60);
-  late Color accent4 = const Color(0xFF414144);
-  late Color success = const Color(0xFF249689);
-  late Color warning = const Color(0xFFF9CF58);
-  late Color error = const Color(0xFFFF5963);
-  late Color info = const Color(0xFFFFFFFF);
+  late Color primary = const Color(0xFF529CCA);  // Lighter blue for dark
+  late Color secondary = const Color(0xFF00D4AA);
+  late Color tertiary = const Color(0xFFE16259);
+  late Color alternate = const Color(0xFF373737);
+  late Color primaryText = const Color(0xFFF7F6F3);
+  late Color secondaryText = const Color(0xFF9B9A97);
+  late Color primaryBackground = const Color(0xFF191919);
+  late Color secondaryBackground = const Color(0xFF252525);
+  late Color accent1 = const Color(0xFF1F3A54);
+  late Color accent2 = const Color(0xFF003D34);
+  late Color accent3 = const Color(0xFF4A2826);
+  late Color accent4 = const Color(0xFF2F2F2F);
+  late Color success = const Color(0xFF0F7B6C);
+  late Color warning = const Color(0xFFFFA344);
+  late Color error = const Color(0xFFE03E3E);
+  late Color info = const Color(0xFF529CCA);
 
-  late Color borderColor = const Color(0xFF868787);
+  late Color borderColor = const Color(0xFF373737);
 }
 
 extension TextStyleHelper on TextStyle {

@@ -540,7 +540,7 @@ class _ExportModalState extends State<ExportModal> {
       await Future.delayed(const Duration(milliseconds: 300));
 
       if (mounted) {
-        Navigator.pop(context);
+        if (Navigator.canPop(context)) Navigator.pop(context);
       }
     } catch (e) {
       setState(() {

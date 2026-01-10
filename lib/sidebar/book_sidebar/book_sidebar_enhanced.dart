@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:google_fonts/google_fonts.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/backend/api_requests/api_calls.dart';
+import '/auth/custom_auth/auth_util.dart';
+import '/backend/schema/book.dart';
+import '/backend/schema/chapter.dart';
+import '/components/modals/new_chapter_dialog.dart';
 
 class BookSidebarEnhanced extends StatefulWidget {
   const BookSidebarEnhanced({
@@ -12,6 +17,7 @@ class BookSidebarEnhanced extends StatefulWidget {
     required this.onNewBook,
     required this.onNewChapter,
     required this.onSearch,
+    this.selectedBookId,
   });
 
   final Function(int bookId) onBookSelected;
@@ -19,13 +25,15 @@ class BookSidebarEnhanced extends StatefulWidget {
   final VoidCallback onNewBook;
   final VoidCallback onNewChapter;
   final VoidCallback onSearch;
+  final int? selectedBookId;
 
   @override
-  State<BookSidebarEnhanced> createState() => _BookSidebarEnhancedState();
+  State<BookSidebarEnhanced> createState() => BookSidebarEnhancedState();
 }
 
-class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
+class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
   late FocusNode _focusNode;
+  late TextEditingController _searchController;
   int? _selectedBookId;
   int? _selectedChapterId;
   Map<int, bool> _expandedBooks = {};
@@ -33,12 +41,15 @@ class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
   late FocusManager _focusManager;
   int _focusedItemIndex = 0;
   List<NavigationItem> _navigationItems = [];
+  List<NavigationItem> _filteredNavigationItems = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _focusNode = FocusNode();
+    _searchController = TextEditingController();
+    _searchController.addListener(_filterBooks);
     _focusManager = FocusManager(
       onFocusChanged: (index) {
         setState(() => _focusedItemIndex = index);
@@ -50,48 +61,56 @@ class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
   @override
   void dispose() {
     _focusNode.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
   Future<void> _loadBooks() async {
     try {
       setState(() => _isLoading = true);
-      final result = await OCRWorkbenchAPIGroup.listBooksCall.call();
+      
+      final authToken = currentAuthenticationToken ?? '';
+      final result = await OCRWorkbenchAPIGroup.listBooksCall.call(
+        page: 1,
+        pageSize: 50,
+        hTTPBearer: authToken,
+      );
       
       if (result.succeeded) {
-        final books = result.jsonBody as List?;
-        if (books != null) {
-          _buildNavigationItems(books);
-          setState(() => _isLoading = false);
-        }
+        final paginatedResponse = PaginatedBooksResponse.fromJson(
+          result.jsonBody as Map<String, dynamic>,
+        );
+        _buildNavigationItems(paginatedResponse.items);
+        setState(() => _isLoading = false);
+      } else {
+        print('Failed to load books: ${result.statusCode}');
+        setState(() => _isLoading = false);
       }
     } catch (e) {
       print('Error loading books: $e');
       setState(() => _isLoading = false);
     }
   }
+  
+  // Public method to refresh books list
+  Future<void> refreshBooks() async {
+    await _loadBooks();
+  }
 
-  void _buildNavigationItems(List<dynamic> books) {
+  void _buildNavigationItems(List<Book> books) {
     _navigationItems = [];
     for (var book in books) {
-      final bookId = book['id'] as int;
-      final bookName = book['name'] as String? ?? 'Untitled Book';
-      final imageCount = book['image_count'] as int? ?? 0;
-      final audioCount = book['audio_count'] as int? ?? 0;
-      final chapterCount = book['chapter_count'] as int? ?? 0;
-
       _navigationItems.add(
         NavigationItem(
-          id: bookId,
-          name: bookName,
-          imageCount: imageCount,
-          audioCount: audioCount,
-          chapterCount: chapterCount,
+          id: book.id,
+          name: book.name,
+          chapterCount: book.chapterCount ?? 0,
           itemType: ItemType.book,
-          isExpandable: chapterCount > 0,
+          isExpandable: true, // Always expandable to show "+ New Chapter" button
         ),
       );
     }
+    _filteredNavigationItems = List.from(_navigationItems);
   }
 
   Future<void> _toggleBookExpansion(int bookId, List<dynamic>? bookData) async {
@@ -100,24 +119,26 @@ class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
     if (!isExpanded && !_chapterCache.containsKey(bookId)) {
       // Load chapters
       try {
+        final authToken = currentAuthenticationToken ?? '';
         final result = await OCRWorkbenchAPIGroup.listChaptersCall.call(
           bookId: bookId,
+          page: 1,
+          pageSize: 50,
+          hTTPBearer: authToken,
         );
 
         if (result.succeeded) {
-          final chapters = result.jsonBody as List?;
-          if (chapters != null) {
-            final chapterList = chapters
-                .map((ch) => ChapterData(
-                      id: ch['id'] as int,
-                      name: ch['name'] as String? ?? 'Untitled Chapter',
-                      imageCount: ch['image_count'] as int? ?? 0,
-                      audioCount: ch['audio_count'] as int? ?? 0,
-                      bookId: bookId,
-                    ))
-                .toList();
-            _chapterCache[bookId] = chapterList;
-          }
+          final paginatedResponse = PaginatedChaptersResponse.fromJson(
+            result.jsonBody as Map<String, dynamic>,
+          );
+          final chapterList = paginatedResponse.items
+              .map((ch) => ChapterData(
+                    id: ch.id,
+                    name: ch.name,
+                    bookId: bookId,
+                  ))
+              .toList();
+          _chapterCache[bookId] = chapterList;
         }
       } catch (e) {
         print('Error loading chapters: $e');
@@ -130,6 +151,11 @@ class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
   }
 
   void _handleKeyEvent(KeyEvent event) {
+    // Check if modifier key is pressed (Cmd on Mac, Ctrl on Windows/Linux)
+    final isModifierPressed = defaultTargetPlatform == TargetPlatform.macOS
+        ? HardwareKeyboard.instance.isMetaPressed
+        : HardwareKeyboard.instance.isControlPressed;
+
     if (HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.arrowDown)) {
       _focusManager.focusNext(_navigationItems.length);
     } else if (HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.arrowUp)) {
@@ -140,11 +166,8 @@ class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
       _handleCollapseKey();
     } else if (HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.enter)) {
       _handleSelectKey();
-    } else if (HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.keyN) &&
-        HardwareKeyboard.instance.isControlPressed) {
-      widget.onNewBook();
     } else if (HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.keyK) &&
-        HardwareKeyboard.instance.isControlPressed) {
+        isModifierPressed) {
       widget.onSearch();
     }
   }
@@ -248,9 +271,7 @@ class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
             Expanded(
               child: _isLoading
                   ? _buildSkeletonLoader()
-                  : SingleChildScrollView(
-                      child: _buildBooksList(),
-                    ),
+                  : _buildBooksList(),
             ),
           ],
         ),
@@ -276,17 +297,54 @@ class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
             size: 16.0,
             color: FlutterFlowTheme.of(context).secondaryText,
           ),
-          const SizedBox(width: 6.0),
-          Text(
-            'Ctrl+K',
-            style: FlutterFlowTheme.of(context).labelSmall.override(
+          const SizedBox(width: 8.0),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              style: FlutterFlowTheme.of(context).bodySmall.override(
+                fontSize: 13.0,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Search books...',
+                hintStyle: FlutterFlowTheme.of(context).labelSmall.override(
                   color: FlutterFlowTheme.of(context).secondaryText,
-                  fontSize: 11.0,
+                  fontSize: 13.0,
                 ),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
           ),
+          if (_searchController.text.isNotEmpty)
+            InkWell(
+              onTap: () {
+                _searchController.clear();
+              },
+              child: Icon(
+                Icons.close,
+                size: 16.0,
+                color: FlutterFlowTheme.of(context).secondaryText,
+              ),
+            ),
         ],
       ),
     );
+  }
+
+  void _filterBooks() {
+    final query = _searchController.text.toLowerCase();
+    if (query.isEmpty) {
+      setState(() {
+        _filteredNavigationItems = List.from(_navigationItems);
+      });
+    } else {
+      setState(() {
+        _filteredNavigationItems = _navigationItems
+            .where((item) => item.name.toLowerCase().contains(query))
+            .toList();
+      });
+    }
   }
 
   Widget _buildNewBookButton() {
@@ -326,7 +384,11 @@ class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
   }
 
   Widget _buildBooksList() {
-    if (_navigationItems.isEmpty) {
+    final itemsToDisplay = _filteredNavigationItems.isEmpty && _searchController.text.isNotEmpty
+        ? [] 
+        : (_searchController.text.isEmpty ? _navigationItems : _filteredNavigationItems);
+    
+    if (itemsToDisplay.isEmpty && _navigationItems.isEmpty) {
       return Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -355,6 +417,29 @@ class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
         ),
       );
     }
+    
+    if (itemsToDisplay.isEmpty && _searchController.text.isNotEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.search_off,
+              size: 48.0,
+              color: FlutterFlowTheme.of(context).secondaryText,
+            ),
+            const SizedBox(height: 16.0),
+            Text(
+              'No books found',
+              style: FlutterFlowTheme.of(context).bodyMedium.override(
+                    color: FlutterFlowTheme.of(context).secondaryText,
+                  ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -366,7 +451,7 @@ class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
         final item = visibleItems[index];
         final isFocused = index == _focusedItemIndex;
         final isSelected = item.itemType == ItemType.book
-            ? item.id == _selectedBookId
+            ? item.id == (widget.selectedBookId ?? _selectedBookId)
             : item.id == _selectedChapterId;
 
         if (item.itemType == ItemType.book) {
@@ -375,6 +460,8 @@ class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
             isFocused: isFocused,
             isSelected: isSelected,
           );
+        } else if (item.itemType == ItemType.newChapterButton) {
+          return _buildNewChapterButton(bookId: item.bookId!);
         } else {
           return _buildChapterItem(
             item: item,
@@ -387,18 +474,21 @@ class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
   }
 
   int _getVisibleItemCount() {
-    int count = _navigationItems.length;
-    for (var book in _navigationItems) {
+    final itemsToUse = _searchController.text.isEmpty ? _navigationItems : _filteredNavigationItems;
+    int count = itemsToUse.length;
+    for (var book in itemsToUse) {
       if (_expandedBooks[book.id] == true) {
-        count += _chapterCache[book.id]?.length ?? 0;
+        final chapterCount = _chapterCache[book.id]?.length ?? 0;
+        count += chapterCount + 1; // +1 for "New Chapter" button
       }
     }
     return count;
   }
 
   List<NavigationItem> _getVisibleItems() {
+    final itemsToUse = _searchController.text.isEmpty ? _navigationItems : _filteredNavigationItems;
     final items = <NavigationItem>[];
-    for (var book in _navigationItems) {
+    for (var book in itemsToUse) {
       items.add(book);
       if (_expandedBooks[book.id] == true) {
         final chapters = _chapterCache[book.id] ?? [];
@@ -406,12 +496,17 @@ class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
           items.add(NavigationItem(
             id: chapter.id,
             name: chapter.name,
-            imageCount: chapter.imageCount,
-            audioCount: chapter.audioCount,
             itemType: ItemType.chapter,
             bookId: chapter.bookId,
           ));
         }
+        // Add "New Chapter" button after chapters
+        items.add(NavigationItem(
+          id: -book.id, // Negative ID to identify as button
+          name: '+ New Chapter',
+          itemType: ItemType.newChapterButton,
+          bookId: book.id,
+        ));
       }
     }
     return items;
@@ -428,26 +523,24 @@ class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
       margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
       decoration: BoxDecoration(
         color: isSelected
-            ? FlutterFlowTheme.of(context).primary.withValues(alpha: 0.1)
+            ? FlutterFlowTheme.of(context).primary.withValues(alpha: 0.15)
             : isFocused
                 ? FlutterFlowTheme.of(context).primaryBackground
                 : Colors.transparent,
         borderRadius: BorderRadius.circular(8.0),
-        border: Border.all(
-          color: isFocused
-              ? FlutterFlowTheme.of(context).primary
-              : Colors.transparent,
-          width: 1.5,
-        ),
+        border: isSelected
+            ? Border(
+                left: BorderSide(
+                  color: FlutterFlowTheme.of(context).primary,
+                  width: 3.0,
+                ),
+              )
+            : null,
       ),
       child: InkWell(
         onTap: () {
-          if (item.isExpandable) {
-            _toggleBookExpansion(item.id, null);
-          } else {
-            widget.onBookSelected(item.id);
-            setState(() => _selectedBookId = item.id);
-          }
+          // Just select the book, don't expand/collapse
+          widget.onBookSelected(item.id);
         },
         highlightColor: Colors.transparent,
         splashColor: Colors.transparent,
@@ -509,29 +602,7 @@ class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
                     ),
                 ],
               ),
-              const SizedBox(height: 6.0),
-              Row(
-                children: [
-                  const SizedBox(width: 28.0),
-                  Expanded(
-                    child: Wrap(
-                      spacing: 12.0,
-                      children: [
-                        _buildCountBadge(
-                          icon: Icons.image,
-                          count: item.imageCount,
-                          label: 'images',
-                        ),
-                        _buildCountBadge(
-                          icon: Icons.volume_up,
-                          count: item.audioCount,
-                          label: 'audios',
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+              // Removed image/audio count badges - not returned by backend
             ],
           ),
         ),
@@ -603,26 +674,45 @@ class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
                   ),
                 ],
               ),
-              const SizedBox(height: 4.0),
-              Padding(
-                padding: const EdgeInsets.only(left: 24.0),
-                child: Wrap(
-                  spacing: 12.0,
-                  children: [
-                    _buildCountBadge(
-                      icon: Icons.image,
-                      count: item.imageCount,
-                      label: 'images',
-                      small: true,
+              // Removed image/audio count badges - not returned by backend
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNewChapterButton({required int bookId}) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20.0, 4.0, 8.0, 4.0),
+      child: InkWell(
+        onTap: () => _showNewChapterDialog(bookId),
+        borderRadius: BorderRadius.circular(6.0),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+          decoration: BoxDecoration(
+            color: FlutterFlowTheme.of(context).primaryBackground,
+            borderRadius: BorderRadius.circular(6.0),
+            border: Border.all(
+              color: FlutterFlowTheme.of(context).alternate.withOpacity(0.5),
+              width: 1.0,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.add,
+                size: 16.0,
+                color: FlutterFlowTheme.of(context).secondaryText,
+              ),
+              const SizedBox(width: 6.0),
+              Text(
+                'New Chapter',
+                style: FlutterFlowTheme.of(context).labelMedium.override(
+                      fontSize: 12.0,
+                      fontWeight: FontWeight.w500,
+                      color: FlutterFlowTheme.of(context).secondaryText,
                     ),
-                    _buildCountBadge(
-                      icon: Icons.volume_up,
-                      count: item.audioCount,
-                      label: 'audios',
-                      small: true,
-                    ),
-                  ],
-                ),
               ),
             ],
           ),
@@ -631,29 +721,20 @@ class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
     );
   }
 
-  Widget _buildCountBadge({
-    required IconData icon,
-    required int count,
-    required String label,
-    bool small = false,
-  }) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          icon,
-          size: small ? 12.0 : 14.0,
-          color: FlutterFlowTheme.of(context).secondaryText,
-        ),
-        const SizedBox(width: 4.0),
-        Text(
-          '$count',
-          style: FlutterFlowTheme.of(context).labelSmall.override(
-                color: FlutterFlowTheme.of(context).secondaryText,
-                fontSize: small ? 10.0 : 11.0,
-              ),
-        ),
-      ],
+  void _showNewChapterDialog(int bookId) {
+    showDialog(
+      context: context,
+      builder: (context) => NewChapterDialog(
+        bookId: bookId,
+        onSuccess: () {
+          // Clear the cache for this book and reload its chapters
+          setState(() {
+            _chapterCache.remove(bookId);
+          });
+          // Reload chapters for this book
+          _toggleBookExpansion(bookId, null);
+        },
+      ),
     );
   }
 }
@@ -661,8 +742,6 @@ class _BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
 class NavigationItem {
   final int id;
   final String name;
-  final int imageCount;
-  final int audioCount;
   final ItemType itemType;
   final bool isExpandable;
   final int? bookId;
@@ -671,8 +750,6 @@ class NavigationItem {
   NavigationItem({
     required this.id,
     required this.name,
-    required this.imageCount,
-    required this.audioCount,
     required this.itemType,
     this.isExpandable = false,
     this.bookId,
@@ -683,20 +760,16 @@ class NavigationItem {
 class ChapterData {
   final int id;
   final String name;
-  final int imageCount;
-  final int audioCount;
   final int bookId;
 
   ChapterData({
     required this.id,
     required this.name,
-    required this.imageCount,
-    required this.audioCount,
     required this.bookId,
   });
 }
 
-enum ItemType { book, chapter }
+enum ItemType { book, chapter, newChapterButton }
 
 class FocusManager {
   int _currentFocus = 0;
