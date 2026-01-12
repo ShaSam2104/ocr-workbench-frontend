@@ -25,6 +25,9 @@ class OCRWorkbenchAPIGroup {
   static ListChaptersCall listChaptersCall = ListChaptersCall();
   static CreateChapterCall createChapterCall = CreateChapterCall();
   static GetChapterCall getChapterCall = GetChapterCall();
+  static UpdateImageTextCall updateImageTextCall = UpdateImageTextCall();
+  static UpdateAudioTranscriptCall updateAudioTranscriptCall =
+      UpdateAudioTranscriptCall();
   static UpdateChapterCall updateChapterCall = UpdateChapterCall();
   static DeleteChapterCall deleteChapterCall = DeleteChapterCall();
   static UploadImagesCall uploadImagesCall = UploadImagesCall();
@@ -354,6 +357,8 @@ class GetChapterCall {
     int? bookId,
     int? chapterId,
     String? hTTPBearer = '',
+    int? page,
+    int? pageSize,
   }) async {
     final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
 
@@ -364,7 +369,78 @@ class GetChapterCall {
       headers: {
         'Authorization': 'Bearer ${hTTPBearer}',
       },
+      params: {
+        'page': page,
+        'page_size': pageSize,
+      },
+      returnBody: true,
+      encodeBodyUtf8: false,
+      decodeUtf8: false,
+      cache: false,
+      isStreamingApi: false,
+      alwaysAllowBody: false,
+    );
+  }
+}
+
+class UpdateImageTextCall {
+  Future<ApiCallResponse> call({
+    int? imageId,
+    String? hTTPBearer = '',
+    String? textWithFormatting = '',
+    String? plainText = '',
+  }) async {
+    final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
+
+    final ffApiRequestBody = '''
+{
+  "text_with_formatting": "${escapeStringForJson(textWithFormatting)}",
+  "plain_text": "${escapeStringForJson(plainText)}"
+}''';
+    return ApiManager.instance.makeApiCall(
+      callName: 'Update Image text',
+      apiUrl: '${baseUrl}/images/{image_id}/text',
+      callType: ApiCallType.PUT,
+      headers: {
+        'Authorization': 'Bearer ${hTTPBearer}',
+      },
       params: {},
+      body: ffApiRequestBody,
+      bodyType: BodyType.JSON,
+      returnBody: true,
+      encodeBodyUtf8: false,
+      decodeUtf8: false,
+      cache: false,
+      isStreamingApi: false,
+      alwaysAllowBody: false,
+    );
+  }
+}
+
+class UpdateAudioTranscriptCall {
+  Future<ApiCallResponse> call({
+    int? audioId,
+    String? hTTPBearer = '',
+    String? textWithFormatting = '',
+    String? plainText = '',
+  }) async {
+    final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
+
+    final ffApiRequestBody = '''
+{
+  "text_with_formatting": "${escapeStringForJson(textWithFormatting)}",
+  "plain_text": "${escapeStringForJson(plainText)}"
+}''';
+    return ApiManager.instance.makeApiCall(
+      callName: 'Update audio transcript',
+      apiUrl: '${baseUrl}/audio/{audio_id}/transcript',
+      callType: ApiCallType.PUT,
+      headers: {
+        'Authorization': 'Bearer ${hTTPBearer}',
+      },
+      params: {},
+      body: ffApiRequestBody,
+      bodyType: BodyType.JSON,
       returnBody: true,
       encodeBodyUtf8: false,
       decodeUtf8: false,
