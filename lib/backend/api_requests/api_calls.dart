@@ -24,7 +24,8 @@ class OCRWorkbenchAPIGroup {
   static DeleteBookCall deleteBookCall = DeleteBookCall();
   static ListChaptersCall listChaptersCall = ListChaptersCall();
   static CreateChapterCall createChapterCall = CreateChapterCall();
-  static GetChapterCall getChapterCall = GetChapterCall();
+  static GetChapterImagesCall getChapterImagesCall = GetChapterImagesCall();
+  static GetChapterAudiosCall getChapterAudiosCall = GetChapterAudiosCall();
   static UpdateImageTextCall updateImageTextCall = UpdateImageTextCall();
   static UpdateAudioTranscriptCall updateAudioTranscriptCall =
       UpdateAudioTranscriptCall();
@@ -358,7 +359,7 @@ class CreateChapterCall {
   }
 }
 
-class GetChapterCall {
+class GetChapterImagesCall {
   Future<ApiCallResponse> call({
     int? bookId,
     int? chapterId,
@@ -369,8 +370,39 @@ class GetChapterCall {
     final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
 
     return ApiManager.instance.makeApiCall(
-      callName: 'Get Chapter',
-      apiUrl: '${baseUrl}/books/${bookId}/chapters/${chapterId}',
+      callName: 'Get Chapter Images',
+      apiUrl: '${baseUrl}/books/${bookId}/chapters/${chapterId}/images',
+      callType: ApiCallType.GET,
+      headers: {
+        'Authorization': 'Bearer ${hTTPBearer}',
+      },
+      params: {
+        'page': page,
+        'page_size': pageSize,
+      },
+      returnBody: true,
+      encodeBodyUtf8: false,
+      decodeUtf8: false,
+      cache: false,
+      isStreamingApi: false,
+      alwaysAllowBody: false,
+    );
+  }
+}
+
+class GetChapterAudiosCall {
+  Future<ApiCallResponse> call({
+    int? bookId,
+    int? chapterId,
+    String? hTTPBearer = '',
+    int? page,
+    int? pageSize,
+  }) async {
+    final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
+
+    return ApiManager.instance.makeApiCall(
+      callName: 'Get Chapter Audios',
+      apiUrl: '${baseUrl}/books/${bookId}/chapters/${chapterId}/audios',
       callType: ApiCallType.GET,
       headers: {
         'Authorization': 'Bearer ${hTTPBearer}',
