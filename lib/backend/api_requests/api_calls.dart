@@ -30,6 +30,12 @@ class OCRWorkbenchAPIGroup {
       UpdateAudioTranscriptCall();
   static UpdateChapterCall updateChapterCall = UpdateChapterCall();
   static DeleteChapterCall deleteChapterCall = DeleteChapterCall();
+  static DeleteAllImagesInChapterCall deleteAllImagesInChapterCall =
+      DeleteAllImagesInChapterCall();
+  static DeleteAllAudiosInChapterCall deleteAllAudiosInChapterCall =
+      DeleteAllAudiosInChapterCall();
+  static DeleteImageCall deleteImageCall = DeleteImageCall();
+  static DeleteAudioCall deleteAudioCall = DeleteAudioCall();
   static UploadImagesCall uploadImagesCall = UploadImagesCall();
   static UploadAudiosCall uploadAudiosCall = UploadAudiosCall();
   static ProcessImagesOcrCall processImagesOcrCall = ProcessImagesOcrCall();
@@ -499,6 +505,106 @@ class DeleteChapterCall {
     return ApiManager.instance.makeApiCall(
       callName: 'Delete Chapter',
       apiUrl: '${baseUrl}/books/${bookId}/chapters/${chapterId}',
+      callType: ApiCallType.DELETE,
+      headers: {
+        'Authorization': 'Bearer ${hTTPBearer}',
+      },
+      params: {},
+      returnBody: true,
+      encodeBodyUtf8: false,
+      decodeUtf8: false,
+      cache: false,
+      isStreamingApi: false,
+      alwaysAllowBody: false,
+    );
+  }
+}
+
+class DeleteAllImagesInChapterCall {
+  Future<ApiCallResponse> call({
+    int? chapterId,
+    String? hTTPBearer = '',
+  }) async {
+    final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
+
+    return ApiManager.instance.makeApiCall(
+      callName: 'Delete All Images In Chapter',
+      apiUrl: '${baseUrl}/chapters/${chapterId}/images',
+      callType: ApiCallType.DELETE,
+      headers: {
+        'Authorization': 'Bearer ${hTTPBearer}',
+      },
+      params: {},
+      returnBody: true,
+      encodeBodyUtf8: false,
+      decodeUtf8: false,
+      cache: false,
+      isStreamingApi: false,
+      alwaysAllowBody: false,
+    );
+  }
+}
+
+class DeleteAllAudiosInChapterCall {
+  Future<ApiCallResponse> call({
+    int? chapterId,
+    String? hTTPBearer = '',
+  }) async {
+    final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
+
+    return ApiManager.instance.makeApiCall(
+      callName: 'Delete All Audios In Chapter',
+      apiUrl: '${baseUrl}/chapters/${chapterId}/audios',
+      callType: ApiCallType.DELETE,
+      headers: {
+        'Authorization': 'Bearer ${hTTPBearer}',
+      },
+      params: {},
+      returnBody: true,
+      encodeBodyUtf8: false,
+      decodeUtf8: false,
+      cache: false,
+      isStreamingApi: false,
+      alwaysAllowBody: false,
+    );
+  }
+}
+
+class DeleteImageCall {
+  Future<ApiCallResponse> call({
+    int? imageId,
+    String? hTTPBearer = '',
+  }) async {
+    final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
+
+    return ApiManager.instance.makeApiCall(
+      callName: 'Delete Image',
+      apiUrl: '${baseUrl}/images/${imageId}',
+      callType: ApiCallType.DELETE,
+      headers: {
+        'Authorization': 'Bearer ${hTTPBearer}',
+      },
+      params: {},
+      returnBody: true,
+      encodeBodyUtf8: false,
+      decodeUtf8: false,
+      cache: false,
+      isStreamingApi: false,
+      alwaysAllowBody: false,
+    );
+  }
+}
+
+class DeleteAudioCall {
+  Future<ApiCallResponse> call({
+    int? audioId,
+    String? hTTPBearer = '',
+  }) async {
+    final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
+
+    return ApiManager.instance.makeApiCall(
+      callName: 'Delete Audio',
+      apiUrl: '${baseUrl}/audios/${audioId}',
       callType: ApiCallType.DELETE,
       headers: {
         'Authorization': 'Bearer ${hTTPBearer}',
