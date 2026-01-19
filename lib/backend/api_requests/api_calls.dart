@@ -437,7 +437,7 @@ class UpdateImageTextCall {
 }''';
     return ApiManager.instance.makeApiCall(
       callName: 'Update Image text',
-      apiUrl: '${baseUrl}/images/{image_id}/text',
+      apiUrl: '${baseUrl}/images/${imageId}/text',
       callType: ApiCallType.PUT,
       headers: {
         'Authorization': 'Bearer ${hTTPBearer}',

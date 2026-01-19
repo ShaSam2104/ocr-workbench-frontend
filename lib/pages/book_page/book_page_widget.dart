@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/backend/api_requests/api_calls.dart';
 import '/auth/custom_auth/auth_util.dart';
 import '/backend/schema/book.dart';
 import '/backend/schema/chapter.dart';
 import '/components/modals/new_chapter_dialog.dart';
+import '/components/modals/upload_processing_modal.dart';
+import '/pages/home_page/content_area.dart';
 
 class BookPageWidget extends StatefulWidget {
   final int bookId;
+  final int? selectedChapterId;
   final VoidCallback? onChapterCreated;
 
   const BookPageWidget({
     Key? key,
     required this.bookId,
+    this.selectedChapterId,
     this.onChapterCreated,
   }) : super(key: key);
 
@@ -23,9 +28,11 @@ class BookPageWidget extends StatefulWidget {
 class _BookPageWidgetState extends State<BookPageWidget> {
   Book? _book;
   List<Chapter> _chapters = [];
+  int? _selectedChapterId;
   bool _isLoadingBook = true;
   bool _isLoadingChapters = true;
   String? _error;
+  final _contentAreaKey = GlobalKey();
 
   @override
   void initState() {
@@ -40,6 +47,15 @@ class _BookPageWidgetState extends State<BookPageWidget> {
     if (oldWidget.bookId != widget.bookId) {
       _loadBook();
       _loadChapters();
+      setState(() {
+        _selectedChapterId = null;
+      });
+    }
+    // Sync selected chapter from parent
+    if (oldWidget.selectedChapterId != widget.selectedChapterId) {
+      setState(() {
+        _selectedChapterId = widget.selectedChapterId;
+      });
     }
   }
 
@@ -128,6 +144,50 @@ class _BookPageWidgetState extends State<BookPageWidget> {
     );
   }
 
+  void _showUploadModal() {
+    if (_selectedChapterId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a chapter first'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => UploadProcessingModal(
+        chapterId: _selectedChapterId.toString(),
+        onClose: () => Navigator.of(context).pop(),
+        onUploadComplete: () {
+          Navigator.of(context).pop();
+          // Refresh content area
+          setState(() {});
+        },
+      ),
+    );
+  }
+
+  void _handleKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) return;
+
+    final isMac = Theme.of(context).platform == TargetPlatform.macOS;
+    final isModifierPressed = isMac
+        ? HardwareKeyboard.instance.isMetaPressed
+        : HardwareKeyboard.instance.isControlPressed;
+
+    // Cmd/Ctrl + U - Upload files
+    if (isModifierPressed && event.logicalKey == LogicalKeyboardKey.keyU) {
+      _showUploadModal();
+    }
+    // Cmd/Ctrl + N - New chapter
+    else if (isModifierPressed && event.logicalKey == LogicalKeyboardKey.keyN) {
+      _showNewChapterDialog();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoadingBook) {
@@ -158,9 +218,20 @@ class _BookPageWidgetState extends State<BookPageWidget> {
       );
     }
 
-    return Container(
-      color: FlutterFlowTheme.of(context).primaryBackground,
-      child: SingleChildScrollView(
+    return KeyboardListener(
+      focusNode: FocusNode(canRequestFocus: false),
+      onKeyEvent: _handleKeyEvent,
+      child: Container(
+        color: FlutterFlowTheme.of(context).primaryBackground,
+        child: _selectedChapterId == null
+            ? _buildChaptersList()
+            : _buildChapterContent(),
+      ),
+    );
+  }
+
+  Widget _buildChaptersList() {
+    return SingleChildScrollView(
         padding: const EdgeInsets.all(40.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,8 +347,9 @@ class _BookPageWidgetState extends State<BookPageWidget> {
                   final chapter = _chapters[index];
                   return InkWell(
                     onTap: () {
-                      // TODO: Navigate to chapter detail
-                      print('Chapter tapped: ${chapter.id}');
+                      setState(() {
+                        _selectedChapterId = chapter.id;
+                      });
                     },
                     borderRadius: BorderRadius.circular(8.0),
                     child: Container(
@@ -299,7 +371,7 @@ class _BookPageWidgetState extends State<BookPageWidget> {
                                 width: 32.0,
                                 height: 32.0,
                                 decoration: BoxDecoration(
-                                  color: FlutterFlowTheme.of(context).primary.withOpacity(0.1),
+                                  color: FlutterFlowTheme.of(context).primary.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(6.0),
                                 ),
                                 child: Center(
@@ -351,7 +423,112 @@ class _BookPageWidgetState extends State<BookPageWidget> {
               ),
           ],
         ),
-      ),
+      );
+  }
+
+  Widget _buildChapterContent() {
+    final chapter = _chapters.firstWhere((c) => c.id == _selectedChapterId);
+    
+    return Column(
+      children: [
+        // Chapter Header with Back Button and Upload
+        Container(
+          padding: const EdgeInsets.all(24.0),
+          decoration: BoxDecoration(
+            color: FlutterFlowTheme.of(context).secondaryBackground,
+            border: Border(
+              bottom: BorderSide(
+                color: FlutterFlowTheme.of(context).alternate,
+                width: 1.0,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              // Back Button
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _selectedChapterId = null;
+                  });
+                },
+                borderRadius: BorderRadius.circular(6.0),
+                child: Container(
+                  padding: const EdgeInsets.all(8.0),
+                  decoration: BoxDecoration(
+                    color: FlutterFlowTheme.of(context).primaryBackground,
+                    borderRadius: BorderRadius.circular(6.0),
+                    border: Border.all(
+                      color: FlutterFlowTheme.of(context).alternate,
+                      width: 1.0,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.arrow_back,
+                    size: 20.0,
+                    color: FlutterFlowTheme.of(context).primaryText,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16.0),
+              // Chapter Title
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      chapter.name,
+                      style: FlutterFlowTheme.of(context).headlineMedium.override(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 20.0,
+                          ),
+                    ),
+                    if (chapter.description != null && chapter.description!.isNotEmpty)
+                      Text(
+                        chapter.description!,
+                        style: FlutterFlowTheme.of(context).bodyMedium.override(
+                              color: FlutterFlowTheme.of(context).secondaryText,
+                              fontSize: 13.0,
+                            ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16.0),
+              // Upload Button
+              ElevatedButton.icon(
+                onPressed: _showUploadModal,
+                icon: const Icon(Icons.upload_file, size: 18.0),
+                label: const Text('Upload'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: FlutterFlowTheme.of(context).primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 12.0,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Content Area
+        Expanded(
+          child: ContentArea(
+            key: _contentAreaKey,
+            bookId: widget.bookId,
+            chapterId: _selectedChapterId!,
+            onItemsChanged: () {
+              // Refresh the content area
+              setState(() {});
+            },
+          ),
+        ),
+      ],
     );
   }
 }

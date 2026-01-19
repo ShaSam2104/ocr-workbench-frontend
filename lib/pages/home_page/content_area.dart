@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/backend/api_requests/api_calls.dart';
+import '/auth/custom_auth/auth_util.dart';
 
 class ContentArea extends StatefulWidget {
   const ContentArea({
@@ -21,19 +23,48 @@ class ContentArea extends StatefulWidget {
 
 class _ContentAreaState extends State<ContentArea> {
   late FocusNode _focusNode;
-  List<ContentItem> _items = [];
+  late ScrollController _imageScrollController;
+  late ScrollController _audioScrollController;
+  
+  // Tab management
+  int _selectedTab = 0; // 0 = images, 1 = audio
+  
+  // Image-specific state
+  List<ContentItem> _imageItems = [];
+  Set<int> _imageSelectedIndices = {};
+  bool _imageIsLoading = true;
+  bool _imageIsLoadingMore = false;
+  int _imageCurrentPage = 1;
+  int _imageTotalItems = 0;
+  bool _imageHasMore = true;
+  
+  // Audio-specific state
+  List<ContentItem> _audioItems = [];
+  Set<int> _audioSelectedIndices = {};
+  bool _audioIsLoading = true;
+  bool _audioIsLoadingMore = false;
+  int _audioCurrentPage = 1;
+  int _audioTotalItems = 0;
+  bool _audioHasMore = true;
+  
+  // Shared state
   Set<int> _selectedIndices = {};
   int? _focusedIndex;
-  bool _isLoading = true;
-  int? _editingSequenceIndex;
-  late TextEditingController _sequenceEditController;
+  double _zoomLevel = 1.0; // 0.5 to 2.0 range
 
   @override
   void initState() {
     super.initState();
     _focusNode = FocusNode();
-    _sequenceEditController = TextEditingController();
-    _loadContent();
+    _imageScrollController = ScrollController();
+    _audioScrollController = ScrollController();
+    _imageScrollController.addListener(_onScroll);
+    _audioScrollController.addListener(_onScroll);
+    _loadImagesContent();
+    // Request focus after frame renders
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusNode.requestFocus();
+    });
   }
 
   @override
@@ -42,130 +73,291 @@ class _ContentAreaState extends State<ContentArea> {
     if (oldWidget.chapterId != widget.chapterId ||
         oldWidget.bookId != widget.bookId) {
       _selectedIndices.clear();
+      _imageSelectedIndices.clear();
+      _audioSelectedIndices.clear();
       _focusedIndex = null;
-      _loadContent();
+      _imageCurrentPage = 1;
+      _audioCurrentPage = 1;
+      _imageHasMore = true;
+      _audioHasMore = true;
+      _imageItems.clear();
+      _audioItems.clear();
+      _loadImagesContent();
     }
   }
 
   @override
   void dispose() {
     _focusNode.dispose();
-    _sequenceEditController.dispose();
+    _imageScrollController.dispose();
+    _audioScrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadContent() async {
+  Future<void> _loadImagesContent({bool loadMore = false}) async {
+    if (loadMore && (_imageIsLoadingMore || !_imageHasMore)) return;
+    
     try {
-      setState(() => _isLoading = true);
+      setState(() {
+        if (loadMore) {
+          _imageIsLoadingMore = true;
+        } else {
+          _imageIsLoading = true;
+          _imageCurrentPage = 1;
+          _imageItems.clear();
+        }
+      });
 
-      // For now, use mock data or fetch from chapter details
-      // In a real implementation, these API calls would be:
-      // - OCRWorkbenchAPIGroup.listImagesCall
-      // - OCRWorkbenchAPIGroup.listAudiosCall
-      
-      // Loading chapter data to get images/audios
-      final chapterResult = await OCRWorkbenchAPIGroup.getChapterCall.call(
+      final token = currentAuthenticationToken ?? '';
+      final result = await OCRWorkbenchAPIGroup.getChapterImagesCall.call(
+        bookId: widget.bookId,
         chapterId: widget.chapterId,
+        page: _imageCurrentPage,
+        pageSize: 20,
+        hTTPBearer: token,
       );
 
       final newItems = <ContentItem>[];
 
-      if (chapterResult.succeeded) {
-        final chapterData = chapterResult.jsonBody as Map?;
+      if (result.succeeded) {
+        final responseData = result.jsonBody as Map<String, dynamic>?;
+        final imagesData = responseData?['images'] as Map<String, dynamic>?;
         
-        // Parse images from chapter data
-        final images = chapterData?['images'] as List? ?? [];
-        for (var img in images) {
-          newItems.add(ContentItem(
-            id: img['id'] as int,
-            name: img['name'] as String? ?? 'Image',
-            sequence: img['sequence'] as int? ?? 0,
-            type: ContentType.image,
-            url: img['url'] as String?,
-            thumbnailUrl: img['thumbnail_url'] as String?,
-            ocrStatus: _getOCRStatus(img['id'] as int),
-            sizeBytes: img['size_bytes'] as int?,
-          ));
-        }
-
-        // Parse audios from chapter data
-        final audios = chapterData?['audios'] as List? ?? [];
-        for (var audio in audios) {
-          newItems.add(ContentItem(
-            id: audio['id'] as int,
-            name: audio['name'] as String? ?? 'Audio',
-            sequence: audio['sequence'] as int? ?? 0,
-            type: ContentType.audio,
-            url: audio['url'] as String?,
-            durationSeconds: audio['duration_seconds'] as int?,
-            transcriptionStatus:
-                _getTranscriptionStatus(audio['id'] as int),
-            sizeBytes: audio['size_bytes'] as int?,
-          ));
+        if (imagesData != null) {
+          final imageItems = imagesData['items'] as List<dynamic>? ?? [];
+          for (var img in imageItems) {
+            final imageMap = img as Map<String, dynamic>;
+            final ocrTextMap = imageMap['ocr_text'] as Map<String, dynamic>?;
+            newItems.add(ContentItem(
+              id: imageMap['id'] as int,
+              name: 'Image ${imageMap['sequence_number']}',
+              sequence: imageMap['sequence_number'] as int? ?? 0,
+              type: ContentType.image,
+              url: imageMap['image_url'] as String?,
+              thumbnailUrl: imageMap['image_url'] as String?,
+              ocrStatus: imageMap['ocr_status'] as String? ?? 'pending',
+              ocrText: ocrTextMap?['edited_text_with_formatting'] as String?,
+              rawOcrText: ocrTextMap?['raw_text_with_formatting'] as String?,
+            ));
+          }
+          
+          _imageTotalItems = imagesData['total'] as int? ?? 0;
+          final loadedCount = _imageItems.length + newItems.length;
+          _imageHasMore = loadedCount < _imageTotalItems;
         }
       }
 
-      // Sort by sequence
       newItems.sort((a, b) => a.sequence.compareTo(b.sequence));
 
       setState(() {
-        _items = newItems;
-        _isLoading = false;
+        if (loadMore) {
+          _imageItems.addAll(newItems);
+          _imageIsLoadingMore = false;
+        } else {
+          _imageItems = newItems;
+          _imageIsLoading = false;
+        }
+        if (_imageHasMore) _imageCurrentPage++;
       });
     } catch (e) {
-      print('Error loading content: $e');
-      setState(() => _isLoading = false);
+      print('Error loading images: $e');
+      setState(() {
+        _imageIsLoading = false;
+        _imageIsLoadingMore = false;
+      });
     }
   }
 
-  String _getOCRStatus(int imageId) {
-    // Get OCR status from the app state or API
-    // For now, return pending as default
-    return 'pending';
+  Future<void> _loadAudiosContent({bool loadMore = false}) async {
+    if (loadMore && (_audioIsLoadingMore || !_audioHasMore)) return;
+    
+    try {
+      print('===== STARTING AUDIO LOAD =====');
+      print('loadMore: $loadMore, _audioIsLoading: $_audioIsLoading, _audioItems: ${_audioItems.length}');
+      
+      setState(() {
+        if (loadMore) {
+          _audioIsLoadingMore = true;
+        } else {
+          _audioIsLoading = true;
+          _audioCurrentPage = 1;
+          _audioItems.clear();
+        }
+      });
+
+      final token = currentAuthenticationToken ?? '';
+      print('Token exists: ${token.isNotEmpty}');
+      print('Loading from: /books/${widget.bookId}/chapters/${widget.chapterId}/audios');
+      print('Page: $_audioCurrentPage, PageSize: 20');
+      
+      final result = await OCRWorkbenchAPIGroup.getChapterAudiosCall.call(
+        bookId: widget.bookId,
+        chapterId: widget.chapterId,
+        page: _audioCurrentPage,
+        pageSize: 20,
+        hTTPBearer: token,
+      );
+
+      print('===== AUDIO API RESPONSE =====');
+      print('Success: ${result.succeeded}');
+      print('Status Code: ${result.statusCode}');
+      print('Response Body: ${result.jsonBody}');
+
+      final newItems = <ContentItem>[];
+
+      if (result.succeeded) {
+        final responseData = result.jsonBody as Map<String, dynamic>?;
+        print('Response Data Keys: ${responseData?.keys.toList()}');
+        
+        final audiosData = responseData?['audios'] as Map<String, dynamic>?;
+        print('Audios Data Keys: ${audiosData?.keys.toList()}');
+        print('Audios Data: $audiosData');
+        
+        if (audiosData != null) {
+          final audioItems = audiosData['items'] as List<dynamic>? ?? [];
+          print('Audio items count: ${audioItems.length}');
+          print('Total from API: ${audiosData['total']}');
+          
+          for (var audio in audioItems) {
+            try {
+              final audioMap = audio as Map<String, dynamic>;
+              final transcriptMap = audioMap['transcript'] as Map<String, dynamic>?;
+              final newItem = ContentItem(
+                id: audioMap['id'] as int,
+                name: 'Audio ${audioMap['sequence_number']}',
+                sequence: audioMap['sequence_number'] as int? ?? 0,
+                type: ContentType.audio,
+                durationSeconds: audioMap['duration_seconds'] as int?,
+                transcriptionStatus: audioMap['transcription_status'] as String? ?? 'pending',
+                transcript: transcriptMap?['edited_text_with_formatting'] as String?,
+                rawTranscript: transcriptMap?['raw_text_with_formatting'] as String?,
+              );
+              newItems.add(newItem);
+              print('Added audio item: ${newItem.name} (ID: ${newItem.id})');
+            } catch (e) {
+              print('Error parsing audio item: $e');
+            }
+          }
+          
+          _audioTotalItems = audiosData['total'] as int? ?? 0;
+          final loadedCount = _audioItems.length + newItems.length;
+          _audioHasMore = loadedCount < _audioTotalItems;
+          print('Total items: $_audioTotalItems, Loaded: $loadedCount, Has more: $_audioHasMore');
+        } else {
+          print('ERROR: audiosData is null');
+        }
+      } else {
+        print('ERROR: API call failed with status ${result.statusCode}');
+        print('Error response: ${result.jsonBody}');
+      }
+
+      newItems.sort((a, b) => a.sequence.compareTo(b.sequence));
+
+      setState(() {
+        if (loadMore) {
+          _audioItems.addAll(newItems);
+          _audioIsLoadingMore = false;
+        } else {
+          _audioItems = newItems;
+          _audioIsLoading = false;
+        }
+        if (_audioHasMore) _audioCurrentPage++;
+        print('After setState: _audioItems.length = ${_audioItems.length}');
+      });
+      
+      print('===== AUDIO LOAD COMPLETE =====');
+    } catch (e, st) {
+      print('===== AUDIO LOAD ERROR =====');
+      print('Error: $e');
+      print('Stack trace: $st');
+      setState(() {
+        _audioIsLoading = false;
+        _audioIsLoadingMore = false;
+      });
+    }
   }
 
-  String _getTranscriptionStatus(int audioId) {
-    // Get transcription status from the app state or API
-    // For now, return pending as default
-    return 'pending';
+  void _onScroll() {
+    if (_selectedTab == 0) {
+      // Images tab
+      if (_imageScrollController.position.pixels >= _imageScrollController.position.maxScrollExtent - 200) {
+        _loadImagesContent(loadMore: true);
+      }
+    } else {
+      // Audio tab
+      if (_audioScrollController.position.pixels >= _audioScrollController.position.maxScrollExtent - 200) {
+        _loadAudiosContent(loadMore: true);
+      }
+    }
   }
 
   void _handleKeyEvent(KeyEvent event) {
-    if (HardwareKeyboard.instance
-        .isLogicalKeyPressed(LogicalKeyboardKey.keyA) &&
-        HardwareKeyboard.instance.isControlPressed) {
+    if (event is! KeyDownEvent) return;
+
+    final isModifierPressed = HardwareKeyboard.instance.isMetaPressed ||
+        HardwareKeyboard.instance.isControlPressed;
+
+    // Zoom in: Cmd/Ctrl + Plus or Cmd/Ctrl + Equal
+    if (isModifierPressed && 
+        (event.logicalKey == LogicalKeyboardKey.equal || 
+         event.logicalKey == LogicalKeyboardKey.add ||
+         event.logicalKey == LogicalKeyboardKey.numpadAdd)) {
       setState(() {
-        _selectedIndices =
-            Set.from(List.generate(_items.length, (i) => i));
+        _zoomLevel = (_zoomLevel + 0.25).clamp(0.5, 2.0);
       });
-    } else if (HardwareKeyboard.instance
-        .isLogicalKeyPressed(LogicalKeyboardKey.delete)) {
+      print('Zoom In: $_zoomLevel');
+    }
+    // Zoom out: Cmd/Ctrl + Minus
+    else if (isModifierPressed && 
+             (event.logicalKey == LogicalKeyboardKey.minus ||
+              event.logicalKey == LogicalKeyboardKey.numpadSubtract)) {
+      setState(() {
+        _zoomLevel = (_zoomLevel - 0.25).clamp(0.5, 2.0);
+      });
+      print('Zoom Out: $_zoomLevel');
+    }
+    // Reset zoom: Cmd/Ctrl + 0
+    else if (isModifierPressed && 
+             (event.logicalKey == LogicalKeyboardKey.digit0 ||
+              event.logicalKey == LogicalKeyboardKey.numpad0)) {
+      setState(() {
+        _zoomLevel = 1.0;
+      });
+      print('Zoom Reset: $_zoomLevel');
+    }
+    else if (event.logicalKey == LogicalKeyboardKey.keyA && isModifierPressed) {
+      final currentItems = _selectedTab == 0 ? _imageItems : _audioItems;
+      setState(() {
+        _selectedIndices = Set.from(List.generate(currentItems.length, (i) => i));
+      });
+    } else if (event.logicalKey == LogicalKeyboardKey.delete ||
+        event.logicalKey == LogicalKeyboardKey.backspace) {
       _deleteSelected();
-    } else if (HardwareKeyboard.instance
-        .isLogicalKeyPressed(LogicalKeyboardKey.escape)) {
+    } else if (event.logicalKey == LogicalKeyboardKey.escape) {
       setState(() => _selectedIndices.clear());
-    } else if (HardwareKeyboard.instance
-        .isLogicalKeyPressed(LogicalKeyboardKey.arrowDown)) {
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
       _moveFocus(1);
-    } else if (HardwareKeyboard.instance
-        .isLogicalKeyPressed(LogicalKeyboardKey.arrowUp)) {
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
       _moveFocus(-1);
-    } else if (HardwareKeyboard.instance
-        .isLogicalKeyPressed(LogicalKeyboardKey.enter)) {
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      _moveFocus(-1);
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      _moveFocus(1);
+    } else if (event.logicalKey == LogicalKeyboardKey.enter) {
       if (_focusedIndex != null) {
         _showItemDetail(_focusedIndex!);
       }
-    } else if (HardwareKeyboard.instance
-        .isLogicalKeyPressed(LogicalKeyboardKey.tab)) {
+    } else if (event.logicalKey == LogicalKeyboardKey.tab) {
       _moveFocus(HardwareKeyboard.instance.isShiftPressed ? -1 : 1);
     }
   }
 
   void _moveFocus(int direction) {
-    if (_items.isEmpty) return;
+    final currentItems = _selectedTab == 0 ? _imageItems : _audioItems;
+    if (currentItems.isEmpty) return;
     final currentIndex = _focusedIndex ?? 0;
     final newIndex =
-        (currentIndex + direction).clamp(0, _items.length - 1);
+        (currentIndex + direction).clamp(0, currentItems.length - 1);
     setState(() => _focusedIndex = newIndex);
   }
 
@@ -202,9 +394,17 @@ class _ContentAreaState extends State<ContentArea> {
       setState(() {
         final indexesToRemove = _selectedIndices.toList()
           ..sort((a, b) => b.compareTo(a));
-        for (final index in indexesToRemove) {
-          if (index < _items.length) {
-            _items.removeAt(index);
+        if (_selectedTab == 0) {
+          for (final index in indexesToRemove) {
+            if (index < _imageItems.length) {
+              _imageItems.removeAt(index);
+            }
+          }
+        } else {
+          for (final index in indexesToRemove) {
+            if (index < _audioItems.length) {
+              _audioItems.removeAt(index);
+            }
           }
         }
         _selectedIndices.clear();
@@ -221,9 +421,61 @@ class _ContentAreaState extends State<ContentArea> {
     }
   }
 
+  Future<void> _processItem(ContentItem item) async {
+    final token = currentAuthenticationToken ?? '';
+    
+    try {
+      if (item.type == ContentType.image) {
+        final result = await OCRWorkbenchAPIGroup.processImagesOcrCall.call(
+          imageIdsList: [item.id],
+          hTTPBearer: token,
+        );
+        
+        if (result.succeeded) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('OCR processing started for ${item.name}'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          // Refresh content to show updated status
+          await _loadImagesContent();
+        } else {
+          throw Exception('Failed to start OCR processing');
+        }
+      } else {
+        final result = await OCRWorkbenchAPIGroup.transcribeAudiosCall.call(
+          audioIdsList: [item.id],
+          hTTPBearer: token,
+        );
+        
+        if (result.succeeded) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Transcription started for ${item.name}'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          // Refresh content to show updated status
+          await _loadAudiosContent();
+        } else {
+          throw Exception('Failed to start transcription');
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   void _showItemDetail(int index) {
-    if (index < 0 || index >= _items.length) return;
-    final item = _items[index];
+    final currentItems = _selectedTab == 0 ? _imageItems : _audioItems;
+    if (index < 0 || index >= currentItems.length) return;
+    final item = currentItems[index];
 
     if (item.type == ContentType.image) {
       _showImageModal(item);
@@ -235,63 +487,11 @@ class _ContentAreaState extends State<ContentArea> {
   void _showImageModal(ContentItem item) {
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Image #${item.sequence}: ${item.name}',
-                    style: FlutterFlowTheme.of(context).headlineSmall,
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-            ),
-            Divider(),
-            // Image
-            if (item.url != null)
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Image.network(item.url!),
-                ),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Icon(Icons.image_not_supported, size: 64),
-              ),
-            Divider(),
-            // Info
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('OCR Status:',
-                          style: FlutterFlowTheme.of(context).bodyMedium),
-                      _buildStatusBadge(item.ocrStatus),
-                    ],
-                  ),
-                  SizedBox(height: 8),
-                  if (item.ocrStatus == 'completed')
-                    _buildOCRTextSection(item),
-                ],
-              ),
-            ),
-          ],
-        ),
+      builder: (context) => _ImageModalView(
+        item: item,
+        bookId: widget.bookId,
+        chapterId: widget.chapterId,
+        onUpdate: _loadImagesContent,
       ),
     );
   }
@@ -299,51 +499,160 @@ class _ContentAreaState extends State<ContentArea> {
   void _showAudioModal(ContentItem item) {
     showDialog(
       context: context,
-      builder: (context) => Dialog(
+      builder: (context) => _AudioModalView(
+        item: item,
+        bookId: widget.bookId,
+        chapterId: widget.chapterId,
+        onUpdate: _loadAudiosContent,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+    
+    // Calculate cross axis count based on zoom level
+    // Base: 3 columns at 1.0 zoom
+    // 0.5 zoom = 6 columns (smaller thumbnails, more per row)
+    // 2.0 zoom = 2 columns (larger thumbnails, fewer per row)
+    int baseCrossAxisCount = isMobile ? 2 : 3;
+    int crossAxisCount = (baseCrossAxisCount / _zoomLevel).round().clamp(1, 8);
+
+    // Get current tab items
+    final currentItems = _selectedTab == 0 ? _imageItems : _audioItems;
+    final isLoading = _selectedTab == 0 ? _imageIsLoading : _audioIsLoading;
+    final isLoadingMore = _selectedTab == 0 ? _imageIsLoadingMore : _audioIsLoadingMore;
+    final scrollController = _selectedTab == 0 ? _imageScrollController : _audioScrollController;
+
+    return GestureDetector(
+      onTap: () => _focusNode.requestFocus(),
+      child: KeyboardListener(
+        focusNode: _focusNode,
+        onKeyEvent: _handleKeyEvent,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.all(16.0),
+            // Custom Tab Bar at top
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              decoration: BoxDecoration(
+                color: FlutterFlowTheme.of(context).secondaryBackground,
+                border: Border(
+                  bottom: BorderSide(
+                    color: FlutterFlowTheme.of(context).alternate.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                ),
+              ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Audio #${item.sequence}: ${item.name}',
-                    style: FlutterFlowTheme.of(context).headlineSmall,
+                  _buildTabButton(
+                    label: 'Images',
+                    icon: Icons.image,
+                    count: _imageItems.length,
+                    isSelected: _selectedTab == 0,
+                    onPressed: () {
+                      setState(() {
+                        _selectedTab = 0;
+                        _selectedIndices.clear();
+                        _focusedIndex = null;
+                      });
+                    },
                   ),
-                  IconButton(
-                    icon: Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
+                  SizedBox(width: 16),
+                  _buildTabButton(
+                    label: 'Audio',
+                    icon: Icons.audio_file,
+                    count: _audioItems.length,
+                    isSelected: _selectedTab == 1,
+                    onPressed: () async {
+                      setState(() {
+                        _selectedTab = 1;
+                        _selectedIndices.clear();
+                        _focusedIndex = null;
+                      });
+                      // Load audios if not already loaded
+                      if (_audioItems.isEmpty) {
+                        await _loadAudiosContent();
+                      }
+                    },
                   ),
+                  Spacer(),
+                  if (isLoadingMore)
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          FlutterFlowTheme.of(context).primary,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
-            Divider(),
-            // Player
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  if (item.url != null)
-                    AudioPlayerWidget(audioUrl: item.url!)
-                  else
-                    Icon(Icons.audio_file, size: 64),
-                  SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Transcription Status:',
-                          style: FlutterFlowTheme.of(context).bodyMedium),
-                      _buildStatusBadge(item.transcriptionStatus),
-                    ],
+            
+            // Selection Toolbar
+            if (_selectedIndices.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                decoration: BoxDecoration(
+                  color: FlutterFlowTheme.of(context).primary.withValues(alpha: 0.1),
+                  border: Border(
+                    bottom: BorderSide(
+                      color: FlutterFlowTheme.of(context).primary,
+                      width: 1,
+                    ),
                   ),
-                  SizedBox(height: 8),
-                  if (item.transcriptionStatus == 'completed')
-                    _buildTranscriptSection(item),
-                ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${_selectedIndices.length} selected',
+                      style: FlutterFlowTheme.of(context).bodyMedium.override(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.delete_outline),
+                          color: Colors.red,
+                          onPressed: _deleteSelected,
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.close),
+                          onPressed: () =>
+                              setState(() => _selectedIndices.clear()),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
+            
+            // Content Area
+            Expanded(
+              child: isLoading
+                  ? _buildSkeletonLoader()
+                  : currentItems.isEmpty
+                      ? _buildEmptyState()
+                      : GridView.builder(
+                          controller: scrollController,
+                          shrinkWrap: false,
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: crossAxisCount,
+                            crossAxisSpacing: 12.0,
+                            mainAxisSpacing: 12.0,
+                            childAspectRatio: 0.8,
+                          ),
+                          itemCount: currentItems.length,
+                          itemBuilder: (context, index) => _buildGridItem(context, index),
+                        ),
             ),
           ],
         ),
@@ -351,196 +660,57 @@ class _ContentAreaState extends State<ContentArea> {
     );
   }
 
-  Widget _buildOCRTextSection(ContentItem item) {
-    return FutureBuilder<ApiCallResponse>(
-      future: OCRWorkbenchAPIGroup.getImageTextCall.call(
-        imageId: item.id,
-      ),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          );
-        }
-
-        if (snapshot.hasError || snapshot.data?.succeeded != true) {
-          return Text('Failed to load OCR text');
-        }
-
-        final jsonBody = snapshot.data?.jsonBody;
-        final text = jsonBody is Map ? jsonBody['text'] as String? : null;
-
-        return Container(
-          padding: const EdgeInsets.all(12.0),
+  Widget _buildTabButton({
+    required String label,
+    required IconData icon,
+    required int count,
+    required bool isSelected,
+    required VoidCallback onPressed,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(8.0),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
           decoration: BoxDecoration(
-            color: FlutterFlowTheme.of(context).primaryBackground,
-            borderRadius: BorderRadius.circular(8.0),
-          ),
-          child: SingleChildScrollView(
-            child: Text(text ?? 'No text extracted'),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildTranscriptSection(ContentItem item) {
-    return FutureBuilder<ApiCallResponse>(
-      future: OCRWorkbenchAPIGroup.getAudioTranscriptCall.call(
-        audioId: item.id,
-      ),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          );
-        }
-
-        if (snapshot.hasError || snapshot.data?.succeeded != true) {
-          return Text('Failed to load transcript');
-        }
-
-        final jsonBody = snapshot.data?.jsonBody;
-        final transcript = jsonBody is Map ? jsonBody['transcript'] as String? : null;
-
-        return Container(
-          padding: const EdgeInsets.all(12.0),
-          decoration: BoxDecoration(
-            color: FlutterFlowTheme.of(context).primaryBackground,
-            borderRadius: BorderRadius.circular(8.0),
-          ),
-          child: SingleChildScrollView(
-            child: Text(transcript ?? 'No transcript available'),
-          ),
-        );
-      },
-    );
-  }
-
-  void _startEditingSequence(int index) {
-    if (index >= 0 && index < _items.length) {
-      setState(() {
-        _editingSequenceIndex = index;
-        _sequenceEditController.text = _items[index].sequence.toString();
-      });
-    }
-  }
-
-  void _confirmSequenceEdit() async {
-    if (_editingSequenceIndex == null) return;
-    
-    try {
-      final newSequence = int.tryParse(_sequenceEditController.text);
-      if (newSequence == null || newSequence < 1) return;
-      
-      // TODO: Implement API calls when available
-      // if (item.type == ContentType.image) {
-      //   await OCRWorkbenchAPIGroup.updateImageSequenceCall.call(
-      //     imageId: item.id,
-      //     sequence: newSequence,
-      //   );
-      // } else {
-      //   await OCRWorkbenchAPIGroup.updateAudioSequenceCall.call(
-      //     audioId: item.id,
-      //     sequence: newSequence,
-      //   );
-      // }
-
-      // For now, just update locally
-      setState(() {
-        _items[_editingSequenceIndex!].sequence = newSequence;
-        _items.sort((a, b) => a.sequence.compareTo(b.sequence));
-      });
-
-      widget.onItemsChanged();
-    } catch (e) {
-      print('Error updating sequence: $e');
-    } finally {
-      setState(() => _editingSequenceIndex = null);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 600;
-    final isTablet = MediaQuery.of(context).size.width >= 600 &&
-        MediaQuery.of(context).size.width < 1200;
-    final crossAxisCount = isMobile ? 2 : isTablet ? 3 : 4;
-
-    return KeyboardListener(
-      focusNode: _focusNode,
-      onKeyEvent: _handleKeyEvent,
-      child: Column(
-        children: [
-          // Toolbar
-          if (_selectedIndices.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-              decoration: BoxDecoration(
-                color: FlutterFlowTheme.of(context).primary.withValues(alpha: 0.1),
-                border: Border(
-                  bottom: BorderSide(
-                    color: FlutterFlowTheme.of(context).primary,
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '${_selectedIndices.length} selected',
-                    style: FlutterFlowTheme.of(context).bodyMedium.override(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.delete_outline),
-                        color: Colors.red,
-                        onPressed: _deleteSelected,
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.close),
-                        onPressed: () =>
-                            setState(() => _selectedIndices.clear()),
-                      ),
-                    ],
-                  ),
-                ],
+            color: isSelected
+                ? FlutterFlowTheme.of(context).primary.withValues(alpha: 0.15)
+                : Colors.transparent,
+            border: Border(
+              bottom: BorderSide(
+                color: isSelected
+                    ? FlutterFlowTheme.of(context).primary
+                    : Colors.transparent,
+                width: 2,
               ),
             ),
-          // Content
-          Expanded(
-            child: _isLoading
-                ? _buildSkeletonLoader()
-                : _items.isEmpty
-                    ? _buildEmptyState()
-                    : GridView.builder(
-                        padding: const EdgeInsets.all(16.0),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount,
-                          crossAxisSpacing: 12.0,
-                          mainAxisSpacing: 12.0,
-                          childAspectRatio: 0.8,
-                        ),
-                        itemCount: _items.length,
-                        itemBuilder: (context, index) =>
-                            _buildGridItem(context, index),
-                      ),
+            borderRadius: BorderRadius.circular(8.0),
           ),
-        ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: isSelected
+                    ? FlutterFlowTheme.of(context).primary
+                    : FlutterFlowTheme.of(context).secondaryText,
+              ),
+              SizedBox(width: 8),
+              Text(
+                '$label ($count)',
+                style: FlutterFlowTheme.of(context).bodyMedium.override(
+                      color: isSelected
+                          ? FlutterFlowTheme.of(context).primary
+                          : FlutterFlowTheme.of(context).secondaryText,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                    ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -594,10 +764,12 @@ class _ContentAreaState extends State<ContentArea> {
   }
 
   Widget _buildGridItem(BuildContext context, int index) {
-    final item = _items[index];
+    final currentItems = _selectedTab == 0 ? _imageItems : _audioItems;
+    if (index < 0 || index >= currentItems.length) return SizedBox();
+    
+    final item = currentItems[index];
     final isSelected = _selectedIndices.contains(index);
     final isFocused = _focusedIndex == index;
-    final isEditing = _editingSequenceIndex == index;
 
     return GestureDetector(
       onTap: () {
@@ -632,107 +804,149 @@ class _ContentAreaState extends State<ContentArea> {
       },
       child: Container(
         decoration: BoxDecoration(
-          color: isSelected
-              ? FlutterFlowTheme.of(context).primary.withValues(alpha: 0.1)
-              : FlutterFlowTheme.of(context).primaryBackground,
-          borderRadius: BorderRadius.circular(8.0),
+          color: FlutterFlowTheme.of(context).secondaryBackground,
+          borderRadius: BorderRadius.circular(12.0),
           border: Border.all(
             color: isFocused
                 ? FlutterFlowTheme.of(context).primary
                 : isSelected
                     ? FlutterFlowTheme.of(context).primary
-                    : FlutterFlowTheme.of(context).alternate,
-            width: isFocused ? 2.0 : 1.0,
+                    : FlutterFlowTheme.of(context).alternate.withValues(alpha: 0.3),
+            width: isFocused ? 2.5 : (isSelected ? 2.0 : 1.0),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: isSelected
+                  ? FlutterFlowTheme.of(context).primary.withValues(alpha: 0.15)
+                  : Colors.black.withValues(alpha: 0.04),
+              blurRadius: isSelected ? 12.0 : 8.0,
+              offset: Offset(0, isSelected ? 4.0 : 2.0),
+            ),
+          ],
         ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Thumbnail
+            // Thumbnail with overlay gradient
             Expanded(
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: FlutterFlowTheme.of(context).secondaryBackground,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(8.0),
-                    topRight: Radius.circular(8.0),
-                  ),
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    if (item.type == ContentType.image &&
-                        item.thumbnailUrl != null)
-                      Image.network(
-                        item.thumbnailUrl!,
-                        fit: BoxFit.cover,
-                      )
-                    else if (item.type == ContentType.audio)
-                      _buildAudioWaveform()
-                    else
-                      Icon(
-                        item.type == ContentType.image
-                            ? Icons.image
-                            : Icons.audio_file,
-                        size: 48.0,
-                        color: FlutterFlowTheme.of(context).secondaryText,
+              child: Stack(
+                children: [
+                  // Main content
+                  Container(
+                    decoration: BoxDecoration(
+                      color: FlutterFlowTheme.of(context).primaryBackground,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(12.0),
+                        topRight: Radius.circular(12.0),
                       ),
-                    // Selection indicator
-                    if (isSelected)
-                      Positioned(
-                        top: 8.0,
-                        right: 8.0,
-                        child: Container(
-                          padding: const EdgeInsets.all(4.0),
-                          decoration: BoxDecoration(
-                            color: FlutterFlowTheme.of(context).primary,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.check,
-                            size: 16.0,
-                            color: Colors.white,
-                          ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(12.0),
+                        topRight: Radius.circular(12.0),
+                      ),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (item.type == ContentType.image && item.thumbnailUrl != null)
+                            Image.network(
+                              item.thumbnailUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Center(
+                                child: Icon(
+                                  Icons.broken_image,
+                                  size: 48.0,
+                                  color: FlutterFlowTheme.of(context).secondaryText,
+                                ),
+                              ),
+                            )
+                          else if (item.type == ContentType.audio)
+                            Container(
+                              color: FlutterFlowTheme.of(context).primary.withValues(alpha: 0.05),
+                              child: _buildAudioWaveform(),
+                            )
+                          else
+                            Center(
+                              child: Icon(
+                                item.type == ContentType.image
+                                    ? Icons.image_outlined
+                                    : Icons.audio_file_outlined,
+                                size: 56.0,
+                                color: FlutterFlowTheme.of(context).secondaryText.withValues(alpha: 0.4),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Sequence badge overlay (top-left)
+                  Positioned(
+                    top: 10.0,
+                    left: 10.0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.75),
+                        borderRadius: BorderRadius.circular(6.0),
+                      ),
+                      child: Text(
+                        '#${item.sequence}',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12.0,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
                         ),
                       ),
-                  ],
-                ),
+                    ),
+                  ),
+                  // Selection indicator (top-right)
+                  if (isSelected)
+                    Positioned(
+                      top: 10.0,
+                      right: 10.0,
+                      child: Container(
+                        padding: const EdgeInsets.all(6.0),
+                        decoration: BoxDecoration(
+                          color: FlutterFlowTheme.of(context).primary,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: FlutterFlowTheme.of(context).primary.withValues(alpha: 0.4),
+                              blurRadius: 8.0,
+                              spreadRadius: 2.0,
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          Icons.check_rounded,
+                          size: 18.0,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
-            // Info
-            Padding(
-              padding: const EdgeInsets.all(8.0),
+            // Info section with bold typography
+            Container(
+              padding: const EdgeInsets.all(12.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Sequence number (editable)
-                  if (isEditing)
-                    TextFormField(
-                      controller: _sequenceEditController,
-                      keyboardType: TextInputType.number,
-                      onFieldSubmitted: (_) => _confirmSequenceEdit(),
-                      decoration: InputDecoration(
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 4.0,
-                          vertical: 2.0,
+                  // Item name
+                  Text(
+                    item.name,
+                    style: FlutterFlowTheme.of(context).bodyMedium.override(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14.0,
+                          letterSpacing: 0.2,
                         ),
-                        border: OutlineInputBorder(),
-                        hintText: 'Sequence',
-                      ),
-                    )
-                  else
-                    InkWell(
-                      onDoubleTap: () => _startEditingSequence(index),
-                      child: Text(
-                        '#${item.sequence}',
-                        style: FlutterFlowTheme.of(context).labelSmall.override(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 10.0,
-                            ),
-                      ),
-                    ),
-                  SizedBox(height: 4.0),
-                  // Status badges
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: 8.0),
+                  // Status and action button row
                   Row(
                     children: [
                       Expanded(
@@ -742,17 +956,61 @@ class _ContentAreaState extends State<ContentArea> {
                               : item.transcriptionStatus,
                         ),
                       ),
-                      if (item.type == ContentType.audio &&
-                          item.durationSeconds != null)
-                        SizedBox(width: 4.0),
-                      if (item.type == ContentType.audio &&
-                          item.durationSeconds != null)
-                        Text(
-                          '${item.durationSeconds! ~/ 60}:${(item.durationSeconds! % 60).toString().padLeft(2, '0')}',
-                          style: FlutterFlowTheme.of(context).labelSmall.override(
-                                fontSize: 9.0,
+                      // Action button
+                      SizedBox(width: 8.0),
+                      InkWell(
+                        onTap: () => _processItem(item),
+                        child: Container(
+                          padding: const EdgeInsets.all(6.0),
+                          decoration: BoxDecoration(
+                            color: FlutterFlowTheme.of(context).primary,
+                            borderRadius: BorderRadius.circular(6.0),
+                            boxShadow: [
+                              BoxShadow(
+                                color: FlutterFlowTheme.of(context).primary.withValues(alpha: 0.3),
+                                blurRadius: 4.0,
+                                offset: Offset(0, 2),
                               ),
+                            ],
+                          ),
+                          child: Icon(
+                            (item.type == ContentType.image 
+                              ? (item.ocrStatus == 'completed' ? Icons.refresh : Icons.play_arrow)
+                              : (item.transcriptionStatus == 'completed' ? Icons.refresh : Icons.play_arrow)),
+                            size: 16.0,
+                            color: Colors.white,
+                          ),
                         ),
+                      ),
+                      if (item.type == ContentType.audio && item.durationSeconds != null) ...[
+                        SizedBox(width: 6.0),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 3.0),
+                          decoration: BoxDecoration(
+                            color: FlutterFlowTheme.of(context).primaryText.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(4.0),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.schedule,
+                                size: 10.0,
+                                color: FlutterFlowTheme.of(context).secondaryText,
+                              ),
+                              SizedBox(width: 3.0),
+                              Text(
+                                '${item.durationSeconds! ~/ 60}:${(item.durationSeconds! % 60).toString().padLeft(2, '0')}',
+                                style: TextStyle(
+                                  fontSize: 10.0,
+                                  fontWeight: FontWeight.w600,
+                                  color: FlutterFlowTheme.of(context).secondaryText,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],
@@ -774,35 +1032,61 @@ class _ContentAreaState extends State<ContentArea> {
   }
 
   Widget _buildStatusBadge(String? status) {
-    String icon = '⏸️';
-    Color color = Colors.grey;
+    IconData icon;
+    Color color;
+    String label;
 
-    if (status == 'completed') {
-      icon = '✅';
-      color = Colors.green;
-    } else if (status == 'processing') {
-      icon = '⏳';
-      color = Colors.orange;
-    } else if (status == 'failed') {
-      icon = '❌';
-      color = Colors.red;
+    switch (status) {
+      case 'completed':
+        icon = Icons.check_circle;
+        color = Color(0xFF10B981);
+        label = 'Done';
+        break;
+      case 'processing':
+        icon = Icons.sync;
+        color = Color(0xFFF59E0B);
+        label = 'Processing';
+        break;
+      case 'failed':
+        icon = Icons.error;
+        color = Color(0xFFEF4444);
+        label = 'Failed';
+        break;
+      case 'pending':
+      default:
+        icon = Icons.schedule;
+        color = Color(0xFF6B7280);
+        label = 'Pending';
+        break;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 5.0),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4.0),
-        border: Border.all(color: color, width: 0.5),
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6.0),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+          width: 1.0,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(icon, style: TextStyle(fontSize: 10.0)),
-          SizedBox(width: 2.0),
+          Icon(
+            icon,
+            size: 12.0,
+            color: color,
+          ),
+          SizedBox(width: 4.0),
           Text(
-            status ?? 'Unknown',
-            style: TextStyle(fontSize: 8.0, color: color),
+            label,
+            style: TextStyle(
+              fontSize: 10.0,
+              fontWeight: FontWeight.w700,
+              color: color,
+              letterSpacing: 0.3,
+            ),
           ),
         ],
       ),
@@ -821,6 +1105,10 @@ class ContentItem {
   final String? transcriptionStatus;
   final int? durationSeconds;
   final int? sizeBytes;
+  final String? ocrText;
+  final String? rawOcrText;
+  final String? transcript;
+  final String? rawTranscript;
 
   ContentItem({
     required this.id,
@@ -833,10 +1121,757 @@ class ContentItem {
     this.transcriptionStatus = 'pending',
     this.durationSeconds,
     this.sizeBytes,
+    this.ocrText,
+    this.rawOcrText,
+    this.transcript,
+    this.rawTranscript,
   });
 }
 
 enum ContentType { image, audio }
+
+// Image Modal View with Edit Mode
+class _ImageModalView extends StatefulWidget {
+  final ContentItem item;
+  final int bookId;
+  final int chapterId;
+  final VoidCallback onUpdate;
+
+  const _ImageModalView({
+    required this.item,
+    required this.bookId,
+    required this.chapterId,
+    required this.onUpdate,
+  });
+
+  @override
+  State<_ImageModalView> createState() => _ImageModalViewState();
+}
+
+class _ImageModalViewState extends State<_ImageModalView> {
+  bool _isEditMode = false;
+  late TextEditingController _textController;
+  bool _isSaving = false;
+  bool _isProcessing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _textController = TextEditingController(
+      text: widget.item.ocrText ?? widget.item.rawOcrText ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveText() async {
+    setState(() => _isSaving = true);
+    try {
+      final token = currentAuthenticationToken ?? '';
+      final result = await OCRWorkbenchAPIGroup.updateImageTextCall.call(
+        imageId: widget.item.id,
+        textWithFormatting: _textController.text,
+        plainText: _textController.text, // For now, same as formatted
+        hTTPBearer: token,
+      );
+
+      if (result.succeeded) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Text saved successfully')),
+        );
+        widget.onUpdate();
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save text')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _processOCR() async {
+    setState(() => _isProcessing = true);
+    try {
+      final token = currentAuthenticationToken ?? '';
+      final result = await OCRWorkbenchAPIGroup.processImagesOcrCall.call(
+        imageIdsList: [widget.item.id],
+        hTTPBearer: token,
+      );
+
+      if (result.succeeded) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('OCR processing started')),
+        );
+        widget.onUpdate();
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to start OCR processing')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      setState(() => _isProcessing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasText = widget.item.ocrText != null || widget.item.rawOcrText != null;
+    final displayText = widget.item.ocrText ?? widget.item.rawOcrText ?? 'No text extracted';
+    final status = widget.item.ocrStatus ?? 'pending';
+
+    return Dialog(
+      backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.85,
+        height: MediaQuery.of(context).size.height * 0.85,
+        child: Column(
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: FlutterFlowTheme.of(context).alternate,
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Image #${widget.item.sequence}',
+                          style: FlutterFlowTheme.of(context).headlineMedium.override(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Text('Status: ', style: FlutterFlowTheme.of(context).bodySmall),
+                            _buildStatusBadge(status),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (hasText)
+                    IconButton(
+                      icon: Icon(_isEditMode ? Icons.visibility : Icons.edit),
+                      onPressed: () => setState(() => _isEditMode = !_isEditMode),
+                      tooltip: _isEditMode ? 'View Mode' : 'Edit Mode',
+                    ),
+                  IconButton(
+                    icon: Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            // Content
+            Expanded(
+              child: Row(
+                children: [
+                  // Image Preview
+                  Expanded(
+                    flex: 1,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border(
+                          right: BorderSide(
+                            color: FlutterFlowTheme.of(context).alternate,
+                            width: 1,
+                          ),
+                        ),
+                      ),
+                      child: widget.item.url != null
+                          ? InteractiveViewer(
+                              panEnabled: true,
+                              boundaryMargin: EdgeInsets.all(20),
+                              minScale: 0.5,
+                              maxScale: 4,
+                              child: Center(
+                                child: Image.network(
+                                  widget.item.url!,
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                            )
+                          : Center(
+                              child: Icon(
+                                Icons.image_not_supported,
+                                size: 64,
+                                color: FlutterFlowTheme.of(context).secondaryText,
+                              ),
+                            ),
+                    ),
+                  ),
+                  // Text Content
+                  Expanded(
+                    flex: 1,
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      child: hasText
+                          ? (_isEditMode
+                              ? TextField(
+                                  controller: _textController,
+                                  maxLines: null,
+                                  expands: true,
+                                  textAlignVertical: TextAlignVertical.top,
+                                  decoration: InputDecoration(
+                                    hintText: 'Edit extracted text...',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  style: FlutterFlowTheme.of(context).bodyMedium.override(
+                                    fontFamily: 'Readex Pro',
+                                    fontSize: 14,
+                                  ),
+                                )
+                              : SingleChildScrollView(
+                                  child: MarkdownBody(
+                                    data: displayText,
+                                    selectable: true,
+                                    styleSheet: MarkdownStyleSheet(
+                                      p: FlutterFlowTheme.of(context).bodyMedium.override(
+                                        fontFamily: 'Readex Pro',
+                                        fontSize: 14,
+                                      ),
+                                      h1: FlutterFlowTheme.of(context).headlineLarge,
+                                      h2: FlutterFlowTheme.of(context).headlineMedium,
+                                      h3: FlutterFlowTheme.of(context).headlineSmall,
+                                      tableHead: FlutterFlowTheme.of(context).bodyMedium.override(
+                                        fontFamily: 'Readex Pro',
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      tableBody: FlutterFlowTheme.of(context).bodyMedium,
+                                      tableBorder: TableBorder.all(
+                                        color: FlutterFlowTheme.of(context).alternate,
+                                        width: 1,
+                                      ),
+                                    ),
+                                  ),
+                                ))
+                          : Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.text_fields,
+                                    size: 48,
+                                    color: FlutterFlowTheme.of(context).secondaryText,
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'No text extracted yet',
+                                    style: FlutterFlowTheme.of(context).bodyLarge,
+                                  ),
+                                ],
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Footer Actions
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: FlutterFlowTheme.of(context).alternate,
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (status == 'pending' || status == 'failed')
+                    ElevatedButton.icon(
+                      onPressed: _isProcessing ? null : _processOCR,
+                      icon: _isProcessing
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(Icons.play_arrow),
+                      label: Text('Process OCR'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: FlutterFlowTheme.of(context).primary,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  if (status == 'completed')
+                    ElevatedButton.icon(
+                      onPressed: _isProcessing ? null : _processOCR,
+                      icon: _isProcessing
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(Icons.refresh),
+                      label: Text('Reprocess'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: FlutterFlowTheme.of(context).secondaryText,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  if (_isEditMode) ...[
+                    SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      onPressed: _isSaving ? null : _saveText,
+                      icon: _isSaving
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(Icons.save),
+                      label: Text('Save Changes'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: FlutterFlowTheme.of(context).success,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(String? status) {
+    Color bgColor;
+    Color textColor;
+    String label;
+
+    switch (status) {
+      case 'completed':
+        bgColor = FlutterFlowTheme.of(context).success;
+        textColor = Colors.white;
+        label = 'Completed';
+        break;
+      case 'processing':
+        bgColor = FlutterFlowTheme.of(context).warning;
+        textColor = Colors.white;
+        label = 'Processing';
+        break;
+      case 'failed':
+        bgColor = FlutterFlowTheme.of(context).error;
+        textColor = Colors.white;
+        label = 'Failed';
+        break;
+      default:
+        bgColor = FlutterFlowTheme.of(context).secondaryText;
+        textColor = Colors.white;
+        label = 'Pending';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: FlutterFlowTheme.of(context).bodySmall.override(
+          fontFamily: 'Readex Pro',
+          color: textColor,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+// Audio Modal View with Edit Mode
+class _AudioModalView extends StatefulWidget {
+  final ContentItem item;
+  final int bookId;
+  final int chapterId;
+  final VoidCallback onUpdate;
+
+  const _AudioModalView({
+    required this.item,
+    required this.bookId,
+    required this.chapterId,
+    required this.onUpdate,
+  });
+
+  @override
+  State<_AudioModalView> createState() => _AudioModalViewState();
+}
+
+class _AudioModalViewState extends State<_AudioModalView> {
+  bool _isEditMode = false;
+  late TextEditingController _textController;
+  bool _isSaving = false;
+  bool _isProcessing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _textController = TextEditingController(
+      text: widget.item.transcript ?? widget.item.rawTranscript ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveTranscript() async {
+    setState(() => _isSaving = true);
+    try {
+      final token = currentAuthenticationToken ?? '';
+      final result = await OCRWorkbenchAPIGroup.updateAudioTranscriptCall.call(
+        audioId: widget.item.id,
+        textWithFormatting: _textController.text,
+        plainText: _textController.text,
+        hTTPBearer: token,
+      );
+
+      if (result.succeeded) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Transcript saved successfully')),
+        );
+        widget.onUpdate();
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save transcript')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _processTranscription() async {
+    setState(() => _isProcessing = true);
+    try {
+      final token = currentAuthenticationToken ?? '';
+      final result = await OCRWorkbenchAPIGroup.transcribeAudiosCall.call(
+        audioIdsList: [widget.item.id],
+        hTTPBearer: token,
+      );
+
+      if (result.succeeded) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Transcription started')),
+        );
+        widget.onUpdate();
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to start transcription')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      setState(() => _isProcessing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasTranscript = widget.item.transcript != null || widget.item.rawTranscript != null;
+    final displayText = widget.item.transcript ?? widget.item.rawTranscript ?? 'No transcript available';
+    final status = widget.item.transcriptionStatus ?? 'pending';
+
+    return Dialog(
+      backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.7,
+        height: MediaQuery.of(context).size.height * 0.85,
+        child: Column(
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: FlutterFlowTheme.of(context).alternate,
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Audio #${widget.item.sequence}',
+                          style: FlutterFlowTheme.of(context).headlineMedium.override(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Text('Status: ', style: FlutterFlowTheme.of(context).bodySmall),
+                            _buildStatusBadge(status),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (hasTranscript)
+                    IconButton(
+                      icon: Icon(_isEditMode ? Icons.visibility : Icons.edit),
+                      onPressed: () => setState(() => _isEditMode = !_isEditMode),
+                      tooltip: _isEditMode ? 'View Mode' : 'Edit Mode',
+                    ),
+                  IconButton(
+                    icon: Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            // Audio Player
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: FlutterFlowTheme.of(context).alternate,
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: widget.item.url != null
+                  ? AudioPlayerWidget(audioUrl: widget.item.url!)
+                  : Icon(Icons.audio_file, size: 64),
+            ),
+            // Transcript Content
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                child: hasTranscript
+                    ? (_isEditMode
+                        ? TextField(
+                            controller: _textController,
+                            maxLines: null,
+                            expands: true,
+                            textAlignVertical: TextAlignVertical.top,
+                            decoration: InputDecoration(
+                              hintText: 'Edit transcript...',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            style: FlutterFlowTheme.of(context).bodyMedium.override(
+                              fontFamily: 'Readex Pro',
+                              fontSize: 14,
+                            ),
+                          )
+                        : SingleChildScrollView(
+                            child: MarkdownBody(
+                              data: displayText,
+                              selectable: true,
+                              styleSheet: MarkdownStyleSheet(
+                                p: FlutterFlowTheme.of(context).bodyMedium.override(
+                                  fontFamily: 'Readex Pro',
+                                  fontSize: 14,
+                                ),
+                                h1: FlutterFlowTheme.of(context).headlineLarge,
+                                h2: FlutterFlowTheme.of(context).headlineMedium,
+                                h3: FlutterFlowTheme.of(context).headlineSmall,
+                                tableHead: FlutterFlowTheme.of(context).bodyMedium.override(
+                                  fontFamily: 'Readex Pro',
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                tableBody: FlutterFlowTheme.of(context).bodyMedium,
+                                tableBorder: TableBorder.all(
+                                  color: FlutterFlowTheme.of(context).alternate,
+                                  width: 1,
+                                ),
+                              ),
+                            ),
+                          ))
+                    : Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.transcribe,
+                              size: 48,
+                              color: FlutterFlowTheme.of(context).secondaryText,
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'No transcript available yet',
+                              style: FlutterFlowTheme.of(context).bodyLarge,
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
+            ),
+            // Footer Actions
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: FlutterFlowTheme.of(context).alternate,
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (status == 'pending' || status == 'failed')
+                    ElevatedButton.icon(
+                      onPressed: _isProcessing ? null : _processTranscription,
+                      icon: _isProcessing
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(Icons.play_arrow),
+                      label: Text('Process Transcription'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: FlutterFlowTheme.of(context).primary,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  if (status == 'completed')
+                    ElevatedButton.icon(
+                      onPressed: _isProcessing ? null : _processTranscription,
+                      icon: _isProcessing
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(Icons.refresh),
+                      label: Text('Reprocess'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: FlutterFlowTheme.of(context).secondaryText,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  if (_isEditMode) ...[
+                    SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      onPressed: _isSaving ? null : _saveTranscript,
+                      icon: _isSaving
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(Icons.save),
+                      label: Text('Save Changes'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: FlutterFlowTheme.of(context).success,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(String? status) {
+    Color bgColor;
+    Color textColor;
+    String label;
+
+    switch (status) {
+      case 'completed':
+        bgColor = FlutterFlowTheme.of(context).success;
+        textColor = Colors.white;
+        label = 'Completed';
+        break;
+      case 'processing':
+        bgColor = FlutterFlowTheme.of(context).warning;
+        textColor = Colors.white;
+        label = 'Processing';
+        break;
+      case 'failed':
+        bgColor = FlutterFlowTheme.of(context).error;
+        textColor = Colors.white;
+        label = 'Failed';
+        break;
+      default:
+        bgColor = FlutterFlowTheme.of(context).secondaryText;
+        textColor = Colors.white;
+        label = 'Pending';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: FlutterFlowTheme.of(context).bodySmall.override(
+          fontFamily: 'Readex Pro',
+          color: textColor,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
 
 class WaveformPainter extends CustomPainter {
   final Color color;

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kIsWeb;
-import '/components/modals/keyboard_shortcuts_modal.dart';
 
 /// Global keyboard shortcuts manager
 class GlobalKeyboardShortcuts extends StatefulWidget {

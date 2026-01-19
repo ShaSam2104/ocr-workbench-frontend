@@ -443,7 +443,7 @@ class _ExportModalState extends State<ExportModal> {
         Switch(
           value: value,
           onChanged: onChanged,
-          activeColor: theme.primary,
+          activeThumbColor: theme.primary,
         ),
       ],
     );

@@ -32,6 +32,7 @@ class _HomePageWidgetState extends State<HomePageWidget> {
   final scaffoldKey = GlobalKey<ScaffoldState>();
   final GlobalKey<BookSidebarEnhancedState> _sidebarKey = GlobalKey();
   int? _selectedBookId;
+  int? _selectedChapterId;
 
   String get _modifierKey => defaultTargetPlatform == TargetPlatform.macOS ? 'Cmd' : 'Ctrl';
 
@@ -112,11 +113,15 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                       onBookSelected: (bookId) {
                         setState(() {
                           _selectedBookId = bookId;
+                          _selectedChapterId = null; // Clear chapter selection when switching books
                         });
                       },
                       onChapterSelected: (bookId, chapterId) {
                         print('Chapter selected: $chapterId in book: $bookId');
-                        // TODO: Load chapter content
+                        setState(() {
+                          _selectedBookId = bookId;
+                          _selectedChapterId = chapterId;
+                        });
                       },
                       onNewBook: () {
                         showDialog(
@@ -279,6 +284,7 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                             child: _selectedBookId != null
                                 ? BookPageWidget(
                                     bookId: _selectedBookId!,
+                                    selectedChapterId: _selectedChapterId,
                                     onChapterCreated: () {
                                       _sidebarKey.currentState?.refreshBooks();
                                     },

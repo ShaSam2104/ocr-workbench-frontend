@@ -56,6 +56,10 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
       },
     );
     _loadBooks();
+    // Request focus after frame renders
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusNode.requestFocus();
+    });
   }
 
   @override
@@ -151,60 +155,79 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
   }
 
   void _handleKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) return;
+
     // Check if modifier key is pressed (Cmd on Mac, Ctrl on Windows/Linux)
     final isModifierPressed = defaultTargetPlatform == TargetPlatform.macOS
         ? HardwareKeyboard.instance.isMetaPressed
         : HardwareKeyboard.instance.isControlPressed;
 
-    if (HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.arrowDown)) {
-      _focusManager.focusNext(_navigationItems.length);
-    } else if (HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.arrowUp)) {
-      _focusManager.focusPrevious();
-    } else if (HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.arrowRight)) {
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      setState(() {
+        _focusManager.focusNext(_getVisibleItemCount());
+      });
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      setState(() {
+        _focusManager.focusPrevious();
+      });
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
       _handleExpandKey();
-    } else if (HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.arrowLeft)) {
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
       _handleCollapseKey();
-    } else if (HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.enter)) {
+    } else if (event.logicalKey == LogicalKeyboardKey.enter) {
       _handleSelectKey();
-    } else if (HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.keyK) &&
-        isModifierPressed) {
+    } else if (event.logicalKey == LogicalKeyboardKey.keyK && isModifierPressed) {
       widget.onSearch();
     }
   }
 
   void _handleExpandKey() {
-    if (_focusedItemIndex < _navigationItems.length) {
-      final item = _navigationItems[_focusedItemIndex];
-      if (item.itemType == ItemType.book && item.isExpandable) {
-        _toggleBookExpansion(item.id, null);
-      }
-    }
-  }
-
-  void _handleCollapseKey() {
-    if (_focusedItemIndex < _navigationItems.length) {
-      final item = _navigationItems[_focusedItemIndex];
+    final visibleItems = _getVisibleItems();
+    if (_focusedItemIndex < visibleItems.length) {
+      final item = visibleItems[_focusedItemIndex];
       if (item.itemType == ItemType.book) {
         final isExpanded = _expandedBooks[item.id] ?? false;
-        if (isExpanded) {
-          setState(() => _expandedBooks[item.id] = false);
+        if (!isExpanded) {
+          _toggleBookExpansion(item.id, null);
         }
       }
     }
   }
 
+  void _handleCollapseKey() {
+    final visibleItems = _getVisibleItems();
+    if (_focusedItemIndex < visibleItems.length) {
+      final item = visibleItems[_focusedItemIndex];
+      if (item.itemType == ItemType.book) {
+        final isExpanded = _expandedBooks[item.id] ?? false;
+        if (isExpanded) {
+          setState(() => _expandedBooks[item.id] = false);
+        }
+      } else if (item.itemType == ItemType.chapter && item.bookId != null) {
+        // Collapse parent book
+        setState(() => _expandedBooks[item.bookId!] = false);
+      }
+    }
+  }
+
   void _handleSelectKey() {
-    if (_focusedItemIndex < _navigationItems.length) {
-      final item = _navigationItems[_focusedItemIndex];
+    final visibleItems = _getVisibleItems();
+    if (_focusedItemIndex < visibleItems.length) {
+      final item = visibleItems[_focusedItemIndex];
       if (item.itemType == ItemType.book) {
         widget.onBookSelected(item.id);
-        setState(() => _selectedBookId = item.id);
+        setState(() {
+          _selectedBookId = item.id;
+          _selectedChapterId = null;
+        });
       } else if (item.itemType == ItemType.chapter && item.bookId != null) {
         widget.onChapterSelected(item.bookId!, item.id);
         setState(() {
           _selectedBookId = item.bookId;
           _selectedChapterId = item.id;
         });
+      } else if (item.itemType == ItemType.newChapterButton && item.bookId != null) {
+        _showNewChapterDialog(item.bookId!);
       }
     }
   }
@@ -537,13 +560,8 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
               )
             : null,
       ),
-      child: InkWell(
-        onTap: () {
-          // Just select the book, don't expand/collapse
-          widget.onBookSelected(item.id);
-        },
-        highlightColor: Colors.transparent,
-        splashColor: Colors.transparent,
+      child: Material(
+        color: Colors.transparent,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
           child: Column(
@@ -551,33 +569,49 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
             children: [
               Row(
                 children: [
+                  // Expand/Collapse arrow - clickable
                   if (item.isExpandable)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: Icon(
-                        isExpanded
-                            ? Icons.keyboard_arrow_down
-                            : Icons.keyboard_arrow_right,
-                        size: 20.0,
-                        color: FlutterFlowTheme.of(context).primaryText,
+                    InkWell(
+                      onTap: () {
+                        _toggleBookExpansion(item.id, null);
+                      },
+                      borderRadius: BorderRadius.circular(4.0),
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: Icon(
+                          isExpanded
+                              ? Icons.keyboard_arrow_down
+                              : Icons.keyboard_arrow_right,
+                          size: 20.0,
+                          color: FlutterFlowTheme.of(context).primaryText,
+                        ),
                       ),
                     )
                   else
-                    const SizedBox(
-                      width: 28.0,
-                    ),
+                    const SizedBox(width: 28.0),
+                  // Book name - clickable to select
                   Expanded(
-                    child: Text(
-                      item.name,
-                      style: FlutterFlowTheme.of(context).bodyMedium.override(
-                            font: GoogleFonts.outfit(
-                              fontWeight: isSelected
-                                  ? FontWeight.w600
-                                  : FontWeight.w500,
+                    child: InkWell(
+                      onTap: () {
+                        widget.onBookSelected(item.id);
+                        setState(() {
+                          _selectedBookId = item.id;
+                          _selectedChapterId = null;
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(4.0),
+                      child: Text(
+                        item.name,
+                        style: FlutterFlowTheme.of(context).bodyMedium.override(
+                              font: GoogleFonts.outfit(
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.w500,
+                              ),
+                              fontSize: 14.0,
                             ),
-                            fontSize: 14.0,
-                          ),
-                      overflow: TextOverflow.ellipsis,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ),
                   if (item.chapterCount != null && item.chapterCount! > 0)
