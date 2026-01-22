@@ -8,6 +8,7 @@ import '/auth/custom_auth/auth_util.dart';
 import '/backend/schema/book.dart';
 import '/backend/schema/chapter.dart';
 import '/components/modals/new_chapter_dialog.dart';
+import '/toasts/toast_manager.dart';
 
 class BookSidebarEnhanced extends StatefulWidget {
   const BookSidebarEnhanced({
@@ -67,6 +68,373 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
     _focusNode.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _deleteBook(int bookId, String bookName) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.0),
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 360),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Icon and Title
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8.0),
+                      decoration: BoxDecoration(
+                        color: FlutterFlowTheme.of(context).error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6.0),
+                      ),
+                      child: Icon(
+                        Icons.delete_outline,
+                        color: FlutterFlowTheme.of(context).error,
+                        size: 20.0,
+                      ),
+                    ),
+                    const SizedBox(width: 12.0),
+                    Expanded(
+                      child: Text(
+                        'Delete Book?',
+                        style: FlutterFlowTheme.of(context).headlineSmall.override(
+                          fontSize: 16.0,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12.0),
+                // Content
+                Text(
+                  'Are you sure you want to delete "$bookName"?',
+                  style: FlutterFlowTheme.of(context).bodyMedium.override(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 13.0,
+                  ),
+                ),
+                const SizedBox(height: 8.0),
+                Container(
+                  padding: const EdgeInsets.all(10.0),
+                  decoration: BoxDecoration(
+                    color: FlutterFlowTheme.of(context).error.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(6.0),
+                    border: Border.all(
+                      color: FlutterFlowTheme.of(context).error.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: FlutterFlowTheme.of(context).error,
+                        size: 16.0,
+                      ),
+                      const SizedBox(width: 8.0),
+                      Expanded(
+                        child: Text(
+                          'This will permanently delete the book and all its chapters, images, and audios.',
+                          style: FlutterFlowTheme.of(context).bodySmall.override(
+                            color: FlutterFlowTheme.of(context).error,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 12.0,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16.0),
+                // Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 10.0),
+                          backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+                          foregroundColor: FlutterFlowTheme.of(context).primaryText,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6.0),
+                          ),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: FlutterFlowTheme.of(context).labelMedium.override(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12.0,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8.0),
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 10.0),
+                          backgroundColor: FlutterFlowTheme.of(context).error,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6.0),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.delete_rounded,
+                              size: 16.0,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 6.0),
+                            Text(
+                              'Delete',
+                              style: FlutterFlowTheme.of(context).labelMedium.override(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12.0,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final token = currentAuthenticationToken ?? '';
+      final result = await OCRWorkbenchAPIGroup.deleteBookCall.call(
+        bookId: bookId,
+        hTTPBearer: token,
+      );
+
+      if (result.succeeded) {
+        if (mounted) {
+          ToastManager.showSuccess('Book "$bookName" deleted');
+
+          if (_selectedBookId == bookId) {
+            setState(() {
+              _selectedBookId = null;
+              _selectedChapterId = null;
+            });
+          }
+
+          await _loadBooks();
+        }
+      } else {
+        throw Exception('Failed to delete book');
+      }
+    } catch (e) {
+      if (mounted) {
+        ToastManager.showError('Error deleting book: $e');
+      }
+    }
+  }
+
+  Future<void> _deleteChapter(int chapterId, String chapterName, int bookId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.0),
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 360),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Icon and Title
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8.0),
+                      decoration: BoxDecoration(
+                        color: FlutterFlowTheme.of(context).error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6.0),
+                      ),
+                      child: Icon(
+                        Icons.delete_outline,
+                        color: FlutterFlowTheme.of(context).error,
+                        size: 20.0,
+                      ),
+                    ),
+                    const SizedBox(width: 12.0),
+                    Expanded(
+                      child: Text(
+                        'Delete Chapter?',
+                        style: FlutterFlowTheme.of(context).headlineSmall.override(
+                          fontSize: 16.0,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12.0),
+              // Content
+              Text(
+                'Are you sure you want to delete "$chapterName"?',
+                style: FlutterFlowTheme.of(context).bodyMedium.override(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13.0,
+                ),
+              ),
+              const SizedBox(height: 8.0),
+              Container(
+                padding: const EdgeInsets.all(10.0),
+                decoration: BoxDecoration(
+                  color: FlutterFlowTheme.of(context).error.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(6.0),
+                  border: Border.all(
+                    color: FlutterFlowTheme.of(context).error.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      color: FlutterFlowTheme.of(context).error,
+                      size: 16.0,
+                    ),
+                    const SizedBox(width: 8.0),
+                    Expanded(
+                      child: Text(
+                        'This will also delete all images and audios in this chapter.',
+                        style: FlutterFlowTheme.of(context).bodySmall.override(
+                          color: FlutterFlowTheme.of(context).error,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 12.0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16.0),
+              // Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 10.0),
+                        backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+                        foregroundColor: FlutterFlowTheme.of(context).primaryText,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6.0),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: FlutterFlowTheme.of(context).labelMedium.override(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12.0,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8.0),
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 10.0),
+                        backgroundColor: FlutterFlowTheme.of(context).error,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6.0),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.delete_rounded,
+                            size: 16.0,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 6.0),
+                          Text(
+                            'Delete',
+                            style: FlutterFlowTheme.of(context).labelMedium.override(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12.0,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      final token = currentAuthenticationToken ?? '';
+      final result = await OCRWorkbenchAPIGroup.deleteChapterCall.call(
+        chapterId: chapterId,
+        bookId: bookId,
+        hTTPBearer: token,
+      );
+
+      if (result.succeeded) {
+        if (mounted) {
+          ToastManager.showSuccess('Chapter "$chapterName" deleted');
+
+          if (_selectedChapterId == chapterId) {
+            setState(() {
+              _selectedChapterId = null;
+            });
+          }
+
+          _chapterCache.remove(bookId);
+          if (_expandedBooks[bookId] == true) {
+            _toggleBookExpansion(bookId, null);
+            _toggleBookExpansion(bookId, null);
+          }
+          
+          await _loadBooks();
+        }
+      } else {
+        throw Exception('Failed to delete chapter');
+      }
+    } catch (e) {
+      if (mounted) {
+        ToastManager.showError('Error deleting chapter: $e');
+      }
+    }
   }
 
   Future<void> _loadBooks() async {
@@ -634,6 +1002,15 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
                             ),
                       ),
                     ),
+                  const SizedBox(width: 4.0),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 18.0),
+                    color: FlutterFlowTheme.of(context).error,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    onPressed: () => _deleteBook(item.id, item.name),
+                    tooltip: 'Delete book',
+                  ),
                 ],
               ),
               // Removed image/audio count badges - not returned by backend
@@ -705,6 +1082,14 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
                           ),
                       overflow: TextOverflow.ellipsis,
                     ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 16.0),
+                    color: FlutterFlowTheme.of(context).error,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    onPressed: () => _deleteChapter(item.id, item.name, item.bookId!),
+                    tooltip: 'Delete chapter',
                   ),
                 ],
               ),

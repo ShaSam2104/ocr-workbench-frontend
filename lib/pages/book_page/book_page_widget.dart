@@ -8,6 +8,7 @@ import '/backend/schema/chapter.dart';
 import '/components/modals/new_chapter_dialog.dart';
 import '/components/modals/upload_processing_modal.dart';
 import '/pages/home_page/content_area.dart';
+import '/toasts/toast_manager.dart';
 
 class BookPageWidget extends StatefulWidget {
   final int bookId;
@@ -146,12 +147,7 @@ class _BookPageWidgetState extends State<BookPageWidget> {
 
   void _showUploadModal() {
     if (_selectedChapterId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a chapter first'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      ToastManager.showWarning('Please select a chapter first');
       return;
     }
 

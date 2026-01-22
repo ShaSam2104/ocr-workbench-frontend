@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/backend/api_requests/api_calls.dart';
 import '/auth/custom_auth/auth_util.dart';
+import '/toasts/toast_manager.dart';
 
 class ContentArea extends StatefulWidget {
   const ContentArea({
@@ -172,9 +174,6 @@ class _ContentAreaState extends State<ContentArea> {
     if (loadMore && (_audioIsLoadingMore || !_audioHasMore)) return;
     
     try {
-      print('===== STARTING AUDIO LOAD =====');
-      print('loadMore: $loadMore, _audioIsLoading: $_audioIsLoading, _audioItems: ${_audioItems.length}');
-      
       setState(() {
         if (loadMore) {
           _audioIsLoadingMore = true;
@@ -186,10 +185,7 @@ class _ContentAreaState extends State<ContentArea> {
       });
 
       final token = currentAuthenticationToken ?? '';
-      print('Token exists: ${token.isNotEmpty}');
-      print('Loading from: /books/${widget.bookId}/chapters/${widget.chapterId}/audios');
-      print('Page: $_audioCurrentPage, PageSize: 20');
-      
+
       final result = await OCRWorkbenchAPIGroup.getChapterAudiosCall.call(
         bookId: widget.bookId,
         chapterId: widget.chapterId,
@@ -197,21 +193,12 @@ class _ContentAreaState extends State<ContentArea> {
         pageSize: 20,
         hTTPBearer: token,
       );
-
-      print('===== AUDIO API RESPONSE =====');
-      print('Success: ${result.succeeded}');
-      print('Status Code: ${result.statusCode}');
-      print('Response Body: ${result.jsonBody}');
-
       final newItems = <ContentItem>[];
 
       if (result.succeeded) {
         final responseData = result.jsonBody as Map<String, dynamic>?;
-        print('Response Data Keys: ${responseData?.keys.toList()}');
         
         final audiosData = responseData?['audios'] as Map<String, dynamic>?;
-        print('Audios Data Keys: ${audiosData?.keys.toList()}');
-        print('Audios Data: $audiosData');
         
         if (audiosData != null) {
           final audioItems = audiosData['items'] as List<dynamic>? ?? [];
@@ -264,8 +251,6 @@ class _ContentAreaState extends State<ContentArea> {
         if (_audioHasMore) _audioCurrentPage++;
         print('After setState: _audioItems.length = ${_audioItems.length}');
       });
-      
-      print('===== AUDIO LOAD COMPLETE =====');
     } catch (e, st) {
       print('===== AUDIO LOAD ERROR =====');
       print('Error: $e');
@@ -364,33 +349,138 @@ class _ContentAreaState extends State<ContentArea> {
   void _deleteSelected() async {
     if (_selectedIndices.isEmpty) return;
 
+    final itemType = _selectedTab == 0 ? 'image' : 'audio';
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete ${_selectedIndices.length} item(s)?'),
-        content: Text('This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10.0),
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 320),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.delete_outline,
+                      color: FlutterFlowTheme.of(context).error,
+                      size: 18.0,
+                    ),
+                    const SizedBox(width: 10.0),
+                    Expanded(
+                      child: Text(
+                        'Delete ${_selectedIndices.length} $itemType(s)?',
+                        style: FlutterFlowTheme.of(context).bodyLarge.override(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14.0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10.0),
+                Text(
+                  'This action cannot be undone.',
+                  style: FlutterFlowTheme.of(context).bodySmall.override(
+                    fontSize: 12.0,
+                    color: FlutterFlowTheme.of(context).secondaryText,
+                  ),
+                ),
+                const SizedBox(height: 12.0),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+                          foregroundColor: FlutterFlowTheme.of(context).primaryText,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6.0),
+                          ),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: FlutterFlowTheme.of(context).labelSmall.override(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11.0,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6.0),
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          backgroundColor: FlutterFlowTheme.of(context).error,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6.0),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.delete_rounded,
+                              size: 14.0,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 4.0),
+                            Text(
+                              'Delete',
+                              style: FlutterFlowTheme.of(context).labelSmall.override(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 11.0,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete',
-                style: TextStyle(color: Colors.red)),
-          ),
-        ],
+        ),
       ),
     );
 
     if (confirmed != true) return;
 
     try {
-      // TODO: Implement API calls when available
-      // await OCRWorkbenchAPIGroup.deleteImageCall.call(imageId: item.id)
-      // or
-      // await OCRWorkbenchAPIGroup.deleteAudioCall.call(audioId: item.id)
+      final token = currentAuthenticationToken ?? '';
+      final currentItems = _selectedTab == 0 ? _imageItems : _audioItems;
+      final itemsToDelete = _selectedIndices.map((i) => currentItems[i]).toList();
 
+      // Delete each item via API
+      for (final item in itemsToDelete) {
+        if (_selectedTab == 0) {
+          await OCRWorkbenchAPIGroup.deleteImageCall.call(
+            imageId: item.id,
+            hTTPBearer: token,
+          );
+        } else {
+          await OCRWorkbenchAPIGroup.deleteAudioCall.call(
+            audioId: item.id,
+            hTTPBearer: token,
+          );
+        }
+      }
+
+      // Remove from local state
       setState(() {
         final indexesToRemove = _selectedIndices.toList()
           ..sort((a, b) => b.compareTo(a));
@@ -398,12 +488,14 @@ class _ContentAreaState extends State<ContentArea> {
           for (final index in indexesToRemove) {
             if (index < _imageItems.length) {
               _imageItems.removeAt(index);
+              _imageTotalItems--;
             }
           }
         } else {
           for (final index in indexesToRemove) {
             if (index < _audioItems.length) {
               _audioItems.removeAt(index);
+              _audioTotalItems--;
             }
           }
         }
@@ -411,12 +503,171 @@ class _ContentAreaState extends State<ContentArea> {
       });
 
       widget.onItemsChanged();
+
+      if (mounted) {
+        ToastManager.showSuccess('Deleted ${itemsToDelete.length} $itemType(s)');
+      }
     } catch (e) {
       print('Error deleting items: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error deleting items')),
+        ToastManager.showError('Error deleting items: $e');
+      }
+    }
+  }
+
+  Future<void> _deleteAllInChapter() async {
+    final itemType = _selectedTab == 0 ? 'images' : 'audios';
+    final currentItems = _selectedTab == 0 ? _imageItems : _audioItems;
+    
+    if (currentItems.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10.0),
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 320),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.delete_outline,
+                      color: FlutterFlowTheme.of(context).error,
+                      size: 18.0,
+                    ),
+                    const SizedBox(width: 10.0),
+                    Expanded(
+                      child: Text(
+                        'Delete All $itemType?',
+                        style: FlutterFlowTheme.of(context).bodyLarge.override(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14.0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10.0),
+                Text(
+                  'This will delete all ${currentItems.length} $itemType. This action cannot be undone.',
+                  style: FlutterFlowTheme.of(context).bodySmall.override(
+                    fontSize: 12.0,
+                    color: FlutterFlowTheme.of(context).secondaryText,
+                  ),
+                ),
+                const SizedBox(height: 12.0),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+                          foregroundColor: FlutterFlowTheme.of(context).primaryText,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6.0),
+                          ),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: FlutterFlowTheme.of(context).labelSmall.override(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11.0,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6.0),
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          backgroundColor: FlutterFlowTheme.of(context).error,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6.0),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.delete_rounded,
+                              size: 14.0,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 4.0),
+                            Text(
+                              'Delete All',
+                              style: FlutterFlowTheme.of(context).labelSmall.override(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 11.0,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final token = currentAuthenticationToken ?? '';
+
+      // Call bulk delete API
+      if (_selectedTab == 0) {
+        await OCRWorkbenchAPIGroup.deleteAllImagesInChapterCall.call(
+          chapterId: widget.chapterId,
+          hTTPBearer: token,
         );
+      } else {
+        await OCRWorkbenchAPIGroup.deleteAllAudiosInChapterCall.call(
+          chapterId: widget.chapterId,
+          hTTPBearer: token,
+        );
+      }
+
+      // Clear local state
+      setState(() {
+        if (_selectedTab == 0) {
+          _imageItems.clear();
+          _imageTotalItems = 0;
+        } else {
+          _audioItems.clear();
+          _audioTotalItems = 0;
+        }
+        _selectedIndices.clear();
+      });
+
+      widget.onItemsChanged();
+
+      if (mounted) {
+        ToastManager.showSuccess('Deleted all $itemType in chapter');
+      }
+    } catch (e) {
+      print('Error deleting all $itemType: $e');
+      if (mounted) {
+        ToastManager.showError('Error deleting all $itemType: $e');
       }
     }
   }
@@ -579,6 +830,19 @@ class _ContentAreaState extends State<ContentArea> {
                     },
                   ),
                   Spacer(),
+                  // Delete All button
+                  if (currentItems.isNotEmpty)
+                    Tooltip(
+                      message: 'Delete all ${_selectedTab == 0 ? 'images' : 'audios'} in chapter',
+                      child: TextButton.icon(
+                        onPressed: _deleteAllInChapter,
+                        icon: Icon(Icons.delete_sweep, size: 18),
+                        label: Text('Delete All'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.red.shade300,
+                        ),
+                      ),
+                    ),
                   if (isLoadingMore)
                     SizedBox(
                       width: 20,
@@ -849,10 +1113,21 @@ class _ContentAreaState extends State<ContentArea> {
                         fit: StackFit.expand,
                         children: [
                           if (item.type == ContentType.image && item.thumbnailUrl != null)
-                            Image.network(
-                              item.thumbnailUrl!,
+                            CachedNetworkImage(
+                              imageUrl: item.thumbnailUrl!,
                               fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => Center(
+                              placeholder: (context, url) => Container(
+                                color: FlutterFlowTheme.of(context).alternate,
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation(
+                                      FlutterFlowTheme.of(context).primary,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              errorWidget: (context, url, error) => Center(
                                 child: Icon(
                                   Icons.broken_image,
                                   size: 48.0,
@@ -956,8 +1231,8 @@ class _ContentAreaState extends State<ContentArea> {
                               : item.transcriptionStatus,
                         ),
                       ),
-                      // Action button
-                      SizedBox(width: 8.0),
+                      // Process button
+                      SizedBox(width: 6.0),
                       InkWell(
                         onTap: () => _processItem(item),
                         child: Container(
@@ -977,6 +1252,152 @@ class _ContentAreaState extends State<ContentArea> {
                             (item.type == ContentType.image 
                               ? (item.ocrStatus == 'completed' ? Icons.refresh : Icons.play_arrow)
                               : (item.transcriptionStatus == 'completed' ? Icons.refresh : Icons.play_arrow)),
+                            size: 16.0,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      // Delete button
+                      SizedBox(width: 6.0),
+                      InkWell(
+                        onTap: () async {
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (context) => Dialog(
+                              backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10.0),
+                              ),
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(maxWidth: 320),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.delete_outline,
+                                            color: FlutterFlowTheme.of(context).error,
+                                            size: 18.0,
+                                          ),
+                                          const SizedBox(width: 10.0),
+                                          Expanded(
+                                            child: Text(
+                                              'Delete ${item.name}?',
+                                              style: FlutterFlowTheme.of(context).bodyLarge.override(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 14.0,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12.0),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: TextButton(
+                                              onPressed: () => Navigator.pop(context, false),
+                                              style: TextButton.styleFrom(
+                                                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                                backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+                                                foregroundColor: FlutterFlowTheme.of(context).primaryText,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(6.0),
+                                                ),
+                                              ),
+                                              child: Text(
+                                                'Cancel',
+                                                style: FlutterFlowTheme.of(context).labelSmall.override(
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 11.0,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6.0),
+                                          Expanded(
+                                            child: TextButton(
+                                              onPressed: () => Navigator.pop(context, true),
+                                              style: TextButton.styleFrom(
+                                                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                                backgroundColor: FlutterFlowTheme.of(context).error,
+                                                foregroundColor: Colors.white,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(6.0),
+                                                ),
+                                              ),
+                                              child: Text(
+                                                'Delete',
+                                                style: FlutterFlowTheme.of(context).labelSmall.override(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 11.0,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                          if (confirmed == true) {
+                            try {
+                              final token = currentAuthenticationToken ?? '';
+                              if (item.type == ContentType.image) {
+                                await OCRWorkbenchAPIGroup.deleteImageCall.call(
+                                  imageId: item.id,
+                                  hTTPBearer: token,
+                                );
+                              } else {
+                                await OCRWorkbenchAPIGroup.deleteAudioCall.call(
+                                  audioId: item.id,
+                                  hTTPBearer: token,
+                                );
+                              }
+                              setState(() {
+                                if (item.type == ContentType.image) {
+                                  _imageItems.removeWhere((i) => i.id == item.id);
+                                  _imageTotalItems--;
+                                } else {
+                                  _audioItems.removeWhere((i) => i.id == item.id);
+                                  _audioTotalItems--;
+                                }
+                              });
+                              widget.onItemsChanged();
+                              if (mounted) {
+                                ToastManager.showSuccess('${item.name} deleted');
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                ToastManager.showError('Error deleting item: $e');
+                              }
+                            }
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(6.0),
+                          decoration: BoxDecoration(
+                            color: FlutterFlowTheme.of(context).error,
+                            borderRadius: BorderRadius.circular(6.0),
+                            boxShadow: [
+                              BoxShadow(
+                                color: FlutterFlowTheme.of(context).error.withValues(alpha: 0.3),
+                                blurRadius: 4.0,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.delete_rounded,
                             size: 16.0,
                             color: Colors.white,
                           ),
@@ -1283,6 +1704,118 @@ class _ImageModalViewState extends State<_ImageModalView> {
                       tooltip: _isEditMode ? 'View Mode' : 'Edit Mode',
                     ),
                   IconButton(
+                    icon: Icon(Icons.delete_outline),
+                    color: Colors.red,
+                    onPressed: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => Dialog(
+                          backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10.0),
+                          ),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(maxWidth: 320),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.delete_outline,
+                                        color: FlutterFlowTheme.of(context).error,
+                                        size: 18.0,
+                                      ),
+                                      const SizedBox(width: 10.0),
+                                      Expanded(
+                                        child: Text(
+                                          'Delete Image #${widget.item.sequence}?',
+                                          style: FlutterFlowTheme.of(context).bodyLarge.override(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14.0,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12.0),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: TextButton(
+                                          onPressed: () => Navigator.pop(context, false),
+                                          style: TextButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                            backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+                                            foregroundColor: FlutterFlowTheme.of(context).primaryText,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(6.0),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'Cancel',
+                                            style: FlutterFlowTheme.of(context).labelSmall.override(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 11.0,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6.0),
+                                      Expanded(
+                                        child: TextButton(
+                                          onPressed: () => Navigator.pop(context, true),
+                                          style: TextButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                            backgroundColor: FlutterFlowTheme.of(context).error,
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(6.0),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'Delete',
+                                            style: FlutterFlowTheme.of(context).labelSmall.override(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 11.0,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                      if (confirmed == true) {
+                        try {
+                          final token = currentAuthenticationToken ?? '';
+                          await OCRWorkbenchAPIGroup.deleteImageCall.call(
+                            imageId: widget.item.id,
+                            hTTPBearer: token,
+                          );
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            widget.onUpdate();
+                            ToastManager.showSuccess('Image deleted');
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ToastManager.showError('Error deleting image: $e');
+                          }
+                        }
+                      }
+                    },
+                    tooltip: 'Delete image',
+                  ),
+                  IconButton(
                     icon: Icon(Icons.close),
                     onPressed: () => Navigator.pop(context),
                   ),
@@ -1312,9 +1845,20 @@ class _ImageModalViewState extends State<_ImageModalView> {
                               minScale: 0.5,
                               maxScale: 4,
                               child: Center(
-                                child: Image.network(
-                                  widget.item.url!,
+                                child: CachedNetworkImage(
+                                  imageUrl: widget.item.url!,
                                   fit: BoxFit.contain,
+                                  placeholder: (context, url) => CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation(
+                                      FlutterFlowTheme.of(context).primary,
+                                    ),
+                                  ),
+                                  errorWidget: (context, url, error) => Icon(
+                                    Icons.broken_image,
+                                    size: 64,
+                                    color: FlutterFlowTheme.of(context).secondaryText,
+                                  ),
                                 ),
                               ),
                             )
@@ -1667,6 +2211,118 @@ class _AudioModalViewState extends State<_AudioModalView> {
                       onPressed: () => setState(() => _isEditMode = !_isEditMode),
                       tooltip: _isEditMode ? 'View Mode' : 'Edit Mode',
                     ),
+                  IconButton(
+                    icon: Icon(Icons.delete_outline),
+                    color: Colors.red,
+                    onPressed: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => Dialog(
+                          backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10.0),
+                          ),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(maxWidth: 320),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.delete_outline,
+                                        color: FlutterFlowTheme.of(context).error,
+                                        size: 18.0,
+                                      ),
+                                      const SizedBox(width: 10.0),
+                                      Expanded(
+                                        child: Text(
+                                          'Delete Audio #${widget.item.sequence}?',
+                                          style: FlutterFlowTheme.of(context).bodyLarge.override(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14.0,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12.0),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: TextButton(
+                                          onPressed: () => Navigator.pop(context, false),
+                                          style: TextButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                            backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+                                            foregroundColor: FlutterFlowTheme.of(context).primaryText,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(6.0),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'Cancel',
+                                            style: FlutterFlowTheme.of(context).labelSmall.override(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 11.0,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6.0),
+                                      Expanded(
+                                        child: TextButton(
+                                          onPressed: () => Navigator.pop(context, true),
+                                          style: TextButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                            backgroundColor: FlutterFlowTheme.of(context).error,
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(6.0),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'Delete',
+                                            style: FlutterFlowTheme.of(context).labelSmall.override(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 11.0,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                      if (confirmed == true) {
+                        try {
+                          final token = currentAuthenticationToken ?? '';
+                          await OCRWorkbenchAPIGroup.deleteAudioCall.call(
+                            audioId: widget.item.id,
+                            hTTPBearer: token,
+                          );
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            widget.onUpdate();
+                            ToastManager.showSuccess('Audio deleted');
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ToastManager.showError('Error deleting audio: $e');
+                          }
+                        }
+                      }
+                    },
+                    tooltip: 'Delete audio',
+                  ),
                   IconButton(
                     icon: Icon(Icons.close),
                     onPressed: () => Navigator.pop(context),

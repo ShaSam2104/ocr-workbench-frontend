@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:ocr_workbench/auth/custom_auth/auth_util.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/uploaded_file.dart';
 import '/backend/api_requests/api_calls.dart';
+import '/components/modals/image_preview_crop_modal.dart';
+import '/utils/pdf_processor.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:async';
+import 'dart:typed_data';
 
 class UploadProcessingModal extends StatefulWidget {
   const UploadProcessingModal({
@@ -43,7 +47,7 @@ class FileItem {
 }
 
 class ProcessingItem {
-  final String id;
+  String id; // Made non-final so it can be updated with real uploaded ID
   final String name;
   String status; // 'pending', 'processing', 'completed', 'failed'
   double progress;
@@ -117,24 +121,98 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
   Future<void> _pickFiles(String fileType) async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: fileType == 'image' ? FileType.image : FileType.audio,
+        type: fileType == 'image'
+            ? FileType.custom
+            : FileType.audio,
         allowMultiple: true,
+        allowedExtensions: fileType == 'image'
+            ? ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf']
+            : null,
       );
 
       if (result != null) {
-        setState(() {
-          for (var file in result.files) {
-            _selectedFiles.add(
-              FileItem(
-                id: UniqueKey().toString(),
-                name: file.name,
-                fileType: fileType,
-                sizeBytes: file.size,
-                bytes: file.bytes,
-              ),
-            );
+        // Process files and extract images from PDFs if needed
+        final List<FileForPreview> previewFiles = [];
+        
+        for (var file in result.files) {
+          try {
+            if (fileType == 'image' && file.name.toLowerCase().endsWith('.pdf')) {
+              // Extract images from PDF
+              // Prefer bytes for web/cross-platform, fall back to path for mobile
+              final extractedImages = await PDFProcessor.extractImagesFromPDF(
+                file.bytes != null ? null : file.path,
+                pdfBytes: file.bytes,
+              );
+              
+              for (int i = 0; i < extractedImages.length; i++) {
+                previewFiles.add(
+                  FileForPreview(
+                    id: UniqueKey().toString(),
+                    name: '${file.name} - Page ${i + 1}',
+                    imageBytes: extractedImages[i],
+                    originalFileName: file.name,
+                  ),
+                );
+              }
+            } else {
+              // Regular image or audio file
+              previewFiles.add(
+                FileForPreview(
+                  id: UniqueKey().toString(),
+                  name: file.name,
+                  imageBytes: file.bytes ?? Uint8List(0),
+                  originalFileName: file.name,
+                ),
+              );
+            }
+          } catch (e) {
+            _showErrorToast('Error processing ${file.name}: $e');
           }
-        });
+        }
+
+        if (previewFiles.isNotEmpty && fileType == 'image') {
+          // Show preview and crop modal for images
+          if (!mounted) return;
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => ImagePreviewCropModal(
+              initialFiles: previewFiles,
+              onClose: () => Navigator.pop(context),
+              onConfirm: (selectedFiles) {
+                // Convert selected files back to FileItem format
+                setState(() {
+                  for (var file in selectedFiles) {
+                    _selectedFiles.add(
+                      FileItem(
+                        id: file.id,
+                        name: file.name,
+                        fileType: 'image',
+                        sizeBytes: file.imageBytes.length,
+                        bytes: file.imageBytes,
+                      ),
+                    );
+                  }
+                });
+              },
+            ),
+          );
+        } else if (previewFiles.isNotEmpty) {
+          // For audio, directly add to selected files
+          setState(() {
+            for (var file in previewFiles) {
+              _selectedFiles.add(
+                FileItem(
+                  id: file.id,
+                  name: file.name,
+                  fileType: fileType,
+                  sizeBytes: file.imageBytes.length,
+                  bytes: file.imageBytes,
+                ),
+              );
+            }
+          });
+        }
       }
     } catch (e) {
       _showErrorToast('Error picking files: $e');
@@ -175,14 +253,19 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
     _tabController.animateTo(1);
 
     try {
-      // First, upload the images to get real image IDs
-      final List<FFUploadedFile> filesToUpload = imageFiles
-          .where((f) => f.bytes != null)
-          .map((f) => FFUploadedFile(
-                name: f.name,
-                bytes: f.bytes,
-              ))
-          .toList();
+      // Prepare files for upload with correct MIME types
+      final List<FFUploadedFile> filesToUpload = [];
+      
+      for (final f in imageFiles) {
+        if (f.bytes != null) {
+          final mimeType = _detectImageMimeType(f.bytes!, f.name);
+          filesToUpload.add(FFUploadedFile(
+            name: f.name,
+            bytes: f.bytes,
+            mimeType: mimeType,
+          ));
+        }
+      }
 
       if (filesToUpload.isEmpty) {
         _showErrorToast('No valid image files to upload');
@@ -196,6 +279,7 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
       final uploadResponse = await OCRWorkbenchAPIGroup.uploadImagesCall.call(
         chapterId: int.tryParse(widget.chapterId),
         filesList: filesToUpload,
+        hTTPBearer: authManager.authenticationToken,
       );
 
       if (!uploadResponse.succeeded) {
@@ -206,15 +290,18 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
         return;
       }
 
-      // Extract image IDs from the response
+      // Extract image IDs from the response and create mapping
       final jsonBody = uploadResponse.jsonBody;
       final List<int> uploadedImageIds = [];
+      final Map<String, int> tempIdToRealId = {}; // temp FileItem.id -> real image ID
       
       if (jsonBody is List) {
-        for (var item in jsonBody) {
+        for (int i = 0; i < jsonBody.length; i++) {
+          final item = jsonBody[i];
           final imageId = item['id'] as int?;
-          if (imageId != null) {
+          if (imageId != null && i < imageFiles.length) {
             uploadedImageIds.add(imageId);
+            tempIdToRealId[imageFiles[i].id] = imageId;
           }
         }
       }
@@ -227,10 +314,21 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
         return;
       }
 
+      // Update processing items with real IDs
+      setState(() {
+        for (var item in _processingItems) {
+          final realId = tempIdToRealId[item.id];
+          if (realId != null) {
+            item.id = realId.toString();
+          }
+        }
+      });
+
       // Call API to start OCR processing with the uploaded image IDs
       final response =
           await OCRWorkbenchAPIGroup.processImagesOcrCall.call(
         imageIdsList: uploadedImageIds,
+        hTTPBearer: authManager.authenticationToken,
       );
 
       if (response.succeeded) {
@@ -255,6 +353,67 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
       setState(() {
         _isPolling = false;
       });
+    }
+  }
+
+  // Helper function to detect image MIME type from magic bytes
+  String _detectImageMimeType(Uint8List bytes, String fileName) {
+    if (bytes.length < 4) {
+      // Fall back to file extension
+      return _mimeTypeFromExtension(fileName);
+    }
+
+    // Check magic bytes
+    // PNG: 89 50 4E 47
+    if (bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) {
+      return 'image/png';
+    }
+    
+    // JPEG: FF D8 FF
+    if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
+      return 'image/jpeg';
+    }
+    
+    // GIF: 47 49 46 38 (GIF8)
+    if (bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46) {
+      return 'image/gif';
+    }
+    
+    // WebP: RIFF ... WEBP
+    if (bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46) {
+      if (bytes.length >= 12 &&
+          bytes[8] == 0x57 && bytes[9] == 0x45 && 
+          bytes[10] == 0x42 && bytes[11] == 0x50) {
+        return 'image/webp';
+      }
+    }
+    
+    // BMP: 42 4D
+    if (bytes[0] == 0x42 && bytes[1] == 0x4D) {
+      return 'image/bmp';
+    }
+
+    // Fall back to file extension
+    return _mimeTypeFromExtension(fileName);
+  }
+
+  // Helper to get MIME type from file extension
+  String _mimeTypeFromExtension(String fileName) {
+    final extension = fileName.toLowerCase().split('.').last;
+    switch (extension) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'bmp':
+        return 'image/bmp';
+      default:
+        return 'image/jpeg'; // Default to JPEG for PDF-extracted images
     }
   }
 
@@ -307,6 +466,7 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
       final uploadResponse = await OCRWorkbenchAPIGroup.uploadAudiosCall.call(
         chapterId: int.tryParse(widget.chapterId),
         filesList: filesToUpload,
+        hTTPBearer: authManager.authenticationToken,
       );
 
       if (!uploadResponse.succeeded) {
@@ -317,15 +477,18 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
         return;
       }
 
-      // Extract audio IDs from the response
+      // Extract audio IDs from the response and create mapping
       final jsonBody = uploadResponse.jsonBody;
       final List<int> uploadedAudioIds = [];
+      final Map<String, int> tempIdToRealId = {}; // temp FileItem.id -> real audio ID
       
       if (jsonBody is List) {
-        for (var item in jsonBody) {
+        for (int i = 0; i < jsonBody.length; i++) {
+          final item = jsonBody[i];
           final audioId = item['id'] as int?;
-          if (audioId != null) {
+          if (audioId != null && i < audioFiles.length) {
             uploadedAudioIds.add(audioId);
+            tempIdToRealId[audioFiles[i].id] = audioId;
           }
         }
       }
@@ -338,10 +501,21 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
         return;
       }
 
+      // Update processing items with real IDs - batch update
+      setState(() {
+        for (var item in _processingItems) {
+          final realId = tempIdToRealId[item.id];
+          if (realId != null) {
+            item.id = realId.toString();
+          }
+        }
+      });
+
       // Call API to start transcription with the uploaded audio IDs
       final response =
           await OCRWorkbenchAPIGroup.transcribeAudiosCall.call(
         audioIdsList: uploadedAudioIds,
+        hTTPBearer: authManager.authenticationToken,
       );
 
       if (response.succeeded) {
@@ -393,44 +567,66 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
 
   Future<void> _pollOcrStatus() async {
     final response = await OCRWorkbenchAPIGroup.getOcrStatusCall.call(
+      hTTPBearer: authManager.authenticationToken,
       taskId: _ocrTaskId,
     );
 
     if (response.succeeded) {
       final jsonBody = response.jsonBody as Map<String, dynamic>?;
-      final results = jsonBody?['results'] as List<dynamic>?;
+      
+      // Check top-level task status first
+      final taskStatus = jsonBody?['status'] as String?;
+      final images = jsonBody?['images'] as List<dynamic>?;
 
-      if (results != null) {
-        setState(() {
-          _completedCount = 0;
-          _failedCount = 0;
+      if (images != null) {
+        // Batch state update instead of per-item updates
+        int newCompletedCount = 0;
+        int newFailedCount = 0;
+        
+        for (var image in images) {
+          final imageId = image['image_id'] as int?;
+          final status = image['status'] as String?;
+          final errorMsg = image['error'] as String?;
 
-          for (var result in results) {
-            final itemId = result['image_id'] as String?;
-            final status = result['status'] as String?;
-            final errorMsg = result['error'] as String?;
+          // Match by image ID
+          final itemIndex = _processingItems.indexWhere(
+            (i) => i.id == imageId.toString()
+          );
+          
+          if (itemIndex >= 0) {
+            _processingItems[itemIndex].status = status ?? 'pending';
+            _processingItems[itemIndex].errorMessage = errorMsg;
 
-            final itemIndex =
-                _processingItems.indexWhere((i) => i.id == itemId);
-            if (itemIndex >= 0) {
-              _processingItems[itemIndex].status = status ?? 'pending';
-              _processingItems[itemIndex].errorMessage = errorMsg;
-
-              if (status == 'completed') {
-                _processingItems[itemIndex].progress = 1.0;
-                _completedCount++;
-              } else if (status == 'failed') {
-                _failedCount++;
-              } else {
-                _processingItems[itemIndex].progress = 0.5;
-              }
+            if (status == 'completed') {
+              _processingItems[itemIndex].progress = 1.0;
+              newCompletedCount++;
+            } else if (status == 'failed') {
+              newFailedCount++;
+            } else if (status == 'processing') {
+              _processingItems[itemIndex].progress = 0.5;
             }
           }
+        }
 
-          // Stop polling if all items are done
-          if (_completedCount + _failedCount == _processingItems.length) {
+        setState(() {
+          _completedCount = newCompletedCount;
+          _failedCount = newFailedCount;
+          
+          // Stop polling if task is completed or all items are done
+          if (taskStatus == 'completed' || 
+              taskStatus == 'failed' ||
+              _completedCount + _failedCount == _processingItems.length) {
             _isPolling = false;
             _statusPollingTimer?.cancel();
+            
+            // Auto-dismiss modal and trigger refresh when complete
+            if (taskStatus == 'completed' && _completedCount > 0) {
+              Future.delayed(const Duration(milliseconds: 500), () {
+                if (mounted) {
+                  _viewResults();
+                }
+              });
+            }
           }
         });
       }
@@ -440,43 +636,65 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
   Future<void> _pollTranscriptionStatus() async {
     final response = await OCRWorkbenchAPIGroup.getTranscriptionStatusCall.call(
       taskId: _transcriptionTaskId,
+      hTTPBearer: authManager.authenticationToken,
     );
 
     if (response.succeeded) {
       final jsonBody = response.jsonBody as Map<String, dynamic>?;
-      final results = jsonBody?['results'] as List<dynamic>?;
+      
+      // Check top-level task status first
+      final taskStatus = jsonBody?['status'] as String?;
+      final audios = jsonBody?['audios'] as List<dynamic>?;
 
-      if (results != null) {
-        setState(() {
-          _completedCount = 0;
-          _failedCount = 0;
+      if (audios != null) {
+        // Batch state update instead of per-item updates
+        int newCompletedCount = 0;
+        int newFailedCount = 0;
+        
+        for (var audio in audios) {
+          final audioId = audio['audio_id'] as int?;
+          final status = audio['status'] as String?;
+          final errorMsg = audio['error'] as String?;
 
-          for (var result in results) {
-            final itemId = result['audio_id'] as String?;
-            final status = result['status'] as String?;
-            final errorMsg = result['error'] as String?;
+          // Match by audio ID
+          final itemIndex = _processingItems.indexWhere(
+            (i) => i.id == audioId.toString()
+          );
+          
+          if (itemIndex >= 0) {
+            _processingItems[itemIndex].status = status ?? 'pending';
+            _processingItems[itemIndex].errorMessage = errorMsg;
 
-            final itemIndex =
-                _processingItems.indexWhere((i) => i.id == itemId);
-            if (itemIndex >= 0) {
-              _processingItems[itemIndex].status = status ?? 'pending';
-              _processingItems[itemIndex].errorMessage = errorMsg;
-
-              if (status == 'completed') {
-                _processingItems[itemIndex].progress = 1.0;
-                _completedCount++;
-              } else if (status == 'failed') {
-                _failedCount++;
-              } else {
-                _processingItems[itemIndex].progress = 0.5;
-              }
+            if (status == 'completed') {
+              _processingItems[itemIndex].progress = 1.0;
+              newCompletedCount++;
+            } else if (status == 'failed') {
+              newFailedCount++;
+            } else if (status == 'processing') {
+              _processingItems[itemIndex].progress = 0.5;
             }
           }
+        }
 
-          // Stop polling if all items are done
-          if (_completedCount + _failedCount == _processingItems.length) {
+        setState(() {
+          _completedCount = newCompletedCount;
+          _failedCount = newFailedCount;
+          
+          // Stop polling if task is completed or all items are done
+          if (taskStatus == 'completed' || 
+              taskStatus == 'failed' ||
+              _completedCount + _failedCount == _processingItems.length) {
             _isPolling = false;
             _statusPollingTimer?.cancel();
+            
+            // Auto-dismiss modal and trigger refresh when complete
+            if (taskStatus == 'completed' && _completedCount > 0) {
+              Future.delayed(const Duration(milliseconds: 500), () {
+                if (mounted) {
+                  _viewResults();
+                }
+              });
+            }
           }
         });
       }
@@ -494,8 +712,12 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
   }
 
   void _viewResults() {
+    // Trigger refresh callback before dismissing
     widget.onUploadComplete?.call();
-    Navigator.of(context).pop();
+    // Dismiss the modal safely
+    if (mounted && Navigator.canPop(context)) {
+      Navigator.of(context).pop();
+    }
   }
 
   void _showErrorToast(String message) {

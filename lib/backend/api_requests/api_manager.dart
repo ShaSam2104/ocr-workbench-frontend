@@ -362,12 +362,23 @@ class ApiManager {
           ? param as List<FFUploadedFile>
           : [param as FFUploadedFile];
       for (var uploadedFile in uploadedFiles) {
+        // Use mimeType from uploadedFile if available, otherwise detect from filename
+        MediaType? contentType;
+        if (uploadedFile.mimeType != null) {
+          final parts = uploadedFile.mimeType!.split('/');
+          if (parts.length == 2) {
+            contentType = MediaType(parts.first, parts.last);
+          }
+        } else {
+          contentType = _getMediaType(uploadedFile.name);
+        }
+        
         files.add(
           http.MultipartFile.fromBytes(
             e.key,
             uploadedFile.bytes ?? Uint8List.fromList([]),
             filename: uploadedFile.name,
-            contentType: _getMediaType(uploadedFile.name),
+            contentType: contentType,
           ),
         );
       }
