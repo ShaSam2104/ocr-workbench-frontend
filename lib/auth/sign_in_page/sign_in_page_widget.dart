@@ -956,12 +956,12 @@ class _SignInPageWidgetState extends State<SignInPageWidget>
                                                   filled: true,
                                                   fillColor: Color(0x17171707),
                                                   suffixIcon: InkWell(
-                                                    onTap: () => safeSetState(
-                                                      () => _model
+                                                    onTap: () async {
+                                                      safeSetState(() => _model
                                                               .passwordVisibility =
                                                           !_model
-                                                              .passwordVisibility,
-                                                    ),
+                                                              .passwordVisibility);
+                                                    },
                                                     focusNode: FocusNode(
                                                         skipTraversal: true),
                                                     child: Icon(

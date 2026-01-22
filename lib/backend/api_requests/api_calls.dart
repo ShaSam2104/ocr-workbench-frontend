@@ -30,6 +30,8 @@ class OCRWorkbenchAPIGroup {
   static UpdateAudioTranscriptCall updateAudioTranscriptCall =
       UpdateAudioTranscriptCall();
   static UpdateChapterCall updateChapterCall = UpdateChapterCall();
+  static UpdateImageOrderCall updateImageOrderCall = UpdateImageOrderCall();
+  static UpdateAudiosOrderCall updateAudiosOrderCall = UpdateAudiosOrderCall();
   static DeleteChapterCall deleteChapterCall = DeleteChapterCall();
   static DeleteAllImagesInChapterCall deleteAllImagesInChapterCall =
       DeleteAllImagesInChapterCall();
@@ -509,6 +511,74 @@ class UpdateChapterCall {
     return ApiManager.instance.makeApiCall(
       callName: 'Update Chapter',
       apiUrl: '${baseUrl}/books/${bookId}/chapters/${chapterId}',
+      callType: ApiCallType.PUT,
+      headers: {
+        'Authorization': 'Bearer ${hTTPBearer}',
+      },
+      params: {},
+      body: ffApiRequestBody,
+      bodyType: BodyType.JSON,
+      returnBody: true,
+      encodeBodyUtf8: false,
+      decodeUtf8: false,
+      cache: false,
+      isStreamingApi: false,
+      alwaysAllowBody: false,
+    );
+  }
+}
+
+class UpdateImageOrderCall {
+  Future<ApiCallResponse> call({
+    int? chapterId,
+    String? hTTPBearer = '',
+    int? currentSequenceNumber,
+    int? newSequenceNumber,
+  }) async {
+    final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
+
+    final ffApiRequestBody = '''
+{
+  "current_sequence_number": ${currentSequenceNumber},
+  "new_sequence_number": ${newSequenceNumber}
+}''';
+    return ApiManager.instance.makeApiCall(
+      callName: 'Update Image Order',
+      apiUrl: '${baseUrl}/chapters/${chapterId}/images/reorder',
+      callType: ApiCallType.PUT,
+      headers: {
+        'Authorization': 'Bearer ${hTTPBearer}',
+      },
+      params: {},
+      body: ffApiRequestBody,
+      bodyType: BodyType.JSON,
+      returnBody: true,
+      encodeBodyUtf8: false,
+      decodeUtf8: false,
+      cache: false,
+      isStreamingApi: false,
+      alwaysAllowBody: false,
+    );
+  }
+}
+
+class UpdateAudiosOrderCall {
+  Future<ApiCallResponse> call({
+    int? chapterId,
+    String? hTTPBearer = '',
+    int? currentSequenceNumber,
+    int? newSequenceNumber,
+  }) async {
+    final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
+
+    final ffApiRequestBody = '''
+{
+  "current_sequence_number": ${currentSequenceNumber},
+  "new_sequence_number": ${newSequenceNumber}
+}''';
+    return ApiManager.instance.makeApiCall(
+      callName: 'Update Audios Order ',
+      apiUrl: '${baseUrl}/chapters/${chapterId}/audios/reorder',
       callType: ApiCallType.PUT,
       headers: {
         'Authorization': 'Bearer ${hTTPBearer}',
