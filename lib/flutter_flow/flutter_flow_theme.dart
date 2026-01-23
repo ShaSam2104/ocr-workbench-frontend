@@ -168,24 +168,24 @@ class LightModeTheme extends FlutterFlowTheme {
   @Deprecated('Use tertiary instead')
   Color get tertiaryColor => tertiary;
 
-  late Color primary = const Color(0xFF2383E2);  // Notion blue
-  late Color secondary = const Color(0xFF00D4AA);  // Notion teal
-  late Color tertiary = const Color(0xFFE16259);  // Notion coral
-  late Color alternate = const Color(0xFFE3E2E0);  // Notion gray border
-  late Color primaryText = const Color(0xFF37352F);  // Notion dark text
-  late Color secondaryText = const Color(0xFF6B6B6B);  // Notion secondary text
+  late Color primary = const Color(0xFF0969DA);  // GitHub blue - excellent contrast
+  late Color secondary = const Color(0xFF8B5CF6);  // Modern purple
+  late Color tertiary = const Color(0xFF059669);  // Emerald green
+  late Color alternate = const Color(0xFFD1D5DB);  // Much darker gray border - clearly visible
+  late Color primaryText = const Color(0xFF111827);  // Rich black for maximum readability
+  late Color secondaryText = const Color(0xFF6B7280);  // Balanced gray text
   late Color primaryBackground = const Color(0xFFFFFFFF);  // Pure white
-  late Color secondaryBackground = const Color(0xFFF7F6F3);  // Notion light gray
-  late Color accent1 = const Color(0xFFE9F5FF);  // Light blue tint
-  late Color accent2 = const Color(0xFFE5F7F3);  // Light teal tint
-  late Color accent3 = const Color(0xFFFFF3F0);  // Light coral tint
-  late Color accent4 = const Color(0xFFEBEAE6);  // Notion divider
-  late Color success = const Color(0xFF0F7B6C);  // Success green
-  late Color warning = const Color(0xFFFFA344);  // Warning orange
-  late Color error = const Color(0xFFE03E3E);  // Error red
-  late Color info = const Color(0xFF2383E2);  // Info blue
+  late Color secondaryBackground = const Color(0xFFF3F4F6);  // Noticeably darker off-white
+  late Color accent1 = const Color(0xFFDBEAFE);  // Light blue tint
+  late Color accent2 = const Color(0xFFEDE9FE);  // Light purple tint  
+  late Color accent3 = const Color(0xFFD1FAE5);  // Light green tint
+  late Color accent4 = const Color(0xFFE5E7EB);  // Visible light gray
+  late Color success = const Color(0xFF059669);  // Emerald success
+  late Color warning = const Color(0xFFD97706);  // Amber warning
+  late Color error = const Color(0xFFDC2626);  // Clean red error
+  late Color info = const Color(0xFF0284C7);  // Sky blue info
 
-  late Color borderColor = const Color(0xFFE3E2E0);  // Subtle border
+  late Color borderColor = const Color(0xFFD1D5DB);  // Darker, clearly visible borders
 }
 
 abstract class Typography {
