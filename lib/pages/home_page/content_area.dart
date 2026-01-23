@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/backend/api_requests/api_calls.dart';
 import '/auth/custom_auth/auth_util.dart';
 import '/toasts/toast_manager.dart';
+
+enum ScrollDirection { up, down }
 
 class ContentArea extends StatefulWidget {
   const ContentArea({
@@ -53,6 +56,14 @@ class _ContentAreaState extends State<ContentArea> {
   Set<int> _selectedIndices = {};
   int? _focusedIndex;
   double _zoomLevel = 1.0; // 0.5 to 2.0 range
+  
+  // Reorder state
+  bool _isReorderMode = false;
+  int? _draggedIndex;
+  int? _dragOverIndex;
+  bool _isApiCallInProgress = false;
+  Timer? _autoScrollTimer;
+  double _lastDragY = 0;
 
   @override
   void initState() {
@@ -93,6 +104,7 @@ class _ContentAreaState extends State<ContentArea> {
     _focusNode.dispose();
     _imageScrollController.dispose();
     _audioScrollController.dispose();
+    _autoScrollTimer?.cancel();
     super.dispose();
   }
 
@@ -723,6 +735,189 @@ class _ContentAreaState extends State<ContentArea> {
     }
   }
 
+  void _toggleReorderMode() {
+    setState(() {
+      _isReorderMode = !_isReorderMode;
+      if (!_isReorderMode) {
+        _draggedIndex = null;
+        _dragOverIndex = null;
+      }
+    });
+  }
+
+  void _onItemDragStarted(int index) {
+    setState(() {
+      _draggedIndex = index;
+    });
+  }
+
+  void _onItemDragEnded() {
+    setState(() {
+      _draggedIndex = null;
+      _dragOverIndex = null;
+    });
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
+  }
+
+  void _onItemDragOver(int index) {
+    if (_draggedIndex == null || _draggedIndex == index) return;
+    
+    setState(() {
+      _dragOverIndex = index;
+    });
+  }
+
+  void _onItemDropped(int oldIndex, int newIndex) {
+    if (oldIndex == newIndex || _isApiCallInProgress) return;
+
+    setState(() {
+      final currentItems = _selectedTab == 0 ? _imageItems : _audioItems;
+      
+      // Reorder the list locally (optimistic update)
+      final item = currentItems.removeAt(oldIndex);
+      currentItems.insert(newIndex, item);
+      
+      // Update sequence numbers (1-indexed for backend compatibility)
+      for (int i = 0; i < currentItems.length; i++) {
+        currentItems[i].sequence = i + 1;
+      }
+    });
+
+    // Send API call immediately
+    _sendReorderToBackend(oldIndex + 1, newIndex + 1);
+  }
+
+  Future<void> _sendReorderToBackend(int currentSeqNum, int newSeqNum) async {
+    if (_isApiCallInProgress) return;
+
+    try {
+      setState(() => _isApiCallInProgress = true);
+
+      final token = currentAuthenticationToken ?? '';
+
+      if (_selectedTab == 0) {
+        // Images reorder
+        await OCRWorkbenchAPIGroup.updateImageOrderCall.call(
+          chapterId: widget.chapterId,
+          hTTPBearer: token,
+          reordersList: [
+            {
+              'currentSequenceNumber': currentSeqNum,
+              'newSequenceNumber': newSeqNum,
+            }
+          ],
+        );
+      } else {
+        // Audios reorder
+        await OCRWorkbenchAPIGroup.updateAudiosOrderCall.call(
+          chapterId: widget.chapterId,
+          hTTPBearer: token,
+          reordersList: [
+            {
+              'currentSequenceNumber': currentSeqNum,
+              'newSequenceNumber': newSeqNum,
+            }
+          ],
+        );
+      }
+
+      if (mounted) {
+        print('[REORDER] Successfully moved item from $currentSeqNum to $newSeqNum');
+      }
+    } catch (e) {
+      print('[REORDER ERROR] Failed to reorder: $e');
+      if (mounted) {
+        ToastManager.showError('Reorder failed. Reloading...');
+        // Reload and exit reorder mode on failure
+        setState(() => _isReorderMode = false);
+        if (_selectedTab == 0) {
+          await _loadImagesContent();
+        } else {
+          await _loadAudiosContent();
+        }
+      }
+    } finally {
+      setState(() => _isApiCallInProgress = false);
+    }
+  }
+
+  void _handleDragAutoScroll(Offset position) {
+    final scrollController = _selectedTab == 0 ? _imageScrollController : _audioScrollController;
+    if (!scrollController.hasClients) return;
+
+    _lastDragY = position.dy;
+    
+    // Get scroll view bounds - estimate based on screen
+    final screenHeight = MediaQuery.of(context).size.height;
+    final gridAreaStart = 200; // Approximate start of grid (after header/tabs)
+    final gridAreaEnd = screenHeight - 50; // Approximate end (before bottom)
+    
+    // Define scroll trigger zones
+    const double triggerZoneHeight = 100.0;
+    
+    final double topBound = gridAreaStart + triggerZoneHeight;
+    final double bottomBound = gridAreaEnd - triggerZoneHeight;
+    
+    // Check if in trigger zones
+    if (position.dy > bottomBound) {
+      // Near bottom - start scrolling down
+      _startAutoScroll(scrollDirection: ScrollDirection.down, scrollController: scrollController);
+    } else if (position.dy < topBound) {
+      // Near top - start scrolling up
+      _startAutoScroll(scrollDirection: ScrollDirection.up, scrollController: scrollController);
+    } else {
+      // In middle zone - stop auto-scroll
+      _autoScrollTimer?.cancel();
+      _autoScrollTimer = null;
+    }
+  }
+
+  void _startAutoScroll({required ScrollDirection scrollDirection, required ScrollController scrollController}) {
+    // Only create timer if not already running in the same direction
+    if (_autoScrollTimer != null) return;
+
+    _autoScrollTimer = Timer.periodic(Duration(milliseconds: 50), (timer) {
+      if (!scrollController.hasClients) {
+        timer.cancel();
+        _autoScrollTimer = null;
+        return;
+      }
+
+      final currentScroll = scrollController.position.pixels;
+      final maxScroll = scrollController.position.maxScrollExtent;
+      final minScroll = scrollController.position.minScrollExtent;
+      
+      double newScroll;
+      
+      if (scrollDirection == ScrollDirection.down) {
+        // Calculate scroll distance based on how far into the trigger zone we are
+        final screenHeight = MediaQuery.of(context).size.height;
+        final gridAreaEnd = screenHeight - 50;
+        final triggerZoneHeight = 100.0;
+        final distanceIntoZone = (_lastDragY - (gridAreaEnd - triggerZoneHeight)).clamp(0, triggerZoneHeight);
+        final scrollSpeed = 15.0 + (distanceIntoZone / triggerZoneHeight) * 25.0; // 15-40 pixels per tick
+        
+        newScroll = (currentScroll + scrollSpeed).clamp(minScroll, maxScroll);
+      } else {
+        // Scroll up
+        final gridAreaStart = 200;
+        final triggerZoneHeight = 100.0;
+        final distanceIntoZone = ((gridAreaStart + triggerZoneHeight) - _lastDragY).clamp(0, triggerZoneHeight);
+        final scrollSpeed = 15.0 + (distanceIntoZone / triggerZoneHeight) * 25.0; // 15-40 pixels per tick
+        
+        newScroll = (currentScroll - scrollSpeed).clamp(minScroll, maxScroll);
+      }
+
+      // Use animate to smooth scroll
+      scrollController.animateTo(
+        newScroll,
+        duration: Duration(milliseconds: 50),
+        curve: Curves.linear,
+      );
+    });
+  }
+
   void _showItemDetail(int index) {
     final currentItems = _selectedTab == 0 ? _imageItems : _audioItems;
     if (index < 0 || index >= currentItems.length) return;
@@ -830,6 +1025,20 @@ class _ContentAreaState extends State<ContentArea> {
                     },
                   ),
                   Spacer(),
+                  // Reorder toggle button
+                  if (currentItems.isNotEmpty)
+                    Tooltip(
+                      message: _isReorderMode ? 'Done reordering' : 'Start reordering',
+                      child: IconButton(
+                        onPressed: _toggleReorderMode,
+                        icon: Icon(
+                          _isReorderMode ? Icons.done : Icons.drag_handle,
+                          color: _isReorderMode
+                              ? FlutterFlowTheme.of(context).success
+                              : FlutterFlowTheme.of(context).secondaryText,
+                        ),
+                      ),
+                    ),
                   // Delete All button
                   if (currentItems.isNotEmpty)
                     Tooltip(
@@ -857,6 +1066,53 @@ class _ContentAreaState extends State<ContentArea> {
                 ],
               ),
             ),
+            
+            // Reorder Mode Toolbar
+            if (_isReorderMode)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                decoration: BoxDecoration(
+                  color: FlutterFlowTheme.of(context).warning.withValues(alpha: 0.1),
+                  border: Border(
+                    bottom: BorderSide(
+                      color: FlutterFlowTheme.of(context).warning,
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info,
+                      size: 16,
+                      color: FlutterFlowTheme.of(context).warning,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _isApiCallInProgress
+                            ? 'Saving reorder...'
+                            : 'Drag items to reorder. Changes save instantly.',
+                        style: FlutterFlowTheme.of(context).bodySmall.override(
+                          color: FlutterFlowTheme.of(context).warning,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    if (_isApiCallInProgress)
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            FlutterFlowTheme.of(context).primary,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             
             // Selection Toolbar
             if (_selectedIndices.isNotEmpty)
@@ -1034,9 +1290,12 @@ class _ContentAreaState extends State<ContentArea> {
     final item = currentItems[index];
     final isSelected = _selectedIndices.contains(index);
     final isFocused = _focusedIndex == index;
+    final isDragOver = _dragOverIndex == index;
 
-    return GestureDetector(
+    // Build the grid item widget
+    Widget gridItemWidget = GestureDetector(
       onTap: () {
+        if (_isReorderMode) return; // Don't allow selection in reorder mode
         if (HardwareKeyboard.instance.isShiftPressed) {
           // Range select
           if (_selectedIndices.isEmpty) {
@@ -1175,8 +1434,33 @@ class _ContentAreaState extends State<ContentArea> {
                       ),
                     ),
                   ),
-                  // Selection indicator (top-right)
-                  if (isSelected)
+                  // Drag handle (only in reorder mode)
+                  if (_isReorderMode)
+                    Positioned(
+                      top: 10.0,
+                      right: 10.0,
+                      child: Container(
+                        padding: const EdgeInsets.all(6.0),
+                        decoration: BoxDecoration(
+                          color: FlutterFlowTheme.of(context).primary,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: FlutterFlowTheme.of(context).primary.withValues(alpha: 0.4),
+                              blurRadius: 8.0,
+                              spreadRadius: 2.0,
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          Icons.drag_handle,
+                          size: 18.0,
+                          color: Colors.white,
+                        ),
+                      ),
+                    )
+                  // Selection indicator (top-right) - when not in reorder mode
+                  else if (isSelected)
                     Positioned(
                       top: 10.0,
                       right: 10.0,
@@ -1232,51 +1516,52 @@ class _ContentAreaState extends State<ContentArea> {
                         ),
                       ),
                       // Process button
-                      SizedBox(width: 6.0),
-                      InkWell(
-                        onTap: () => _processItem(item),
-                        child: Container(
-                          padding: const EdgeInsets.all(6.0),
-                          decoration: BoxDecoration(
-                            color: FlutterFlowTheme.of(context).primary,
-                            borderRadius: BorderRadius.circular(6.0),
-                            boxShadow: [
-                              BoxShadow(
-                                color: FlutterFlowTheme.of(context).primary.withValues(alpha: 0.3),
-                                blurRadius: 4.0,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            (item.type == ContentType.image 
-                              ? (item.ocrStatus == 'completed' ? Icons.refresh : Icons.play_arrow)
-                              : (item.transcriptionStatus == 'completed' ? Icons.refresh : Icons.play_arrow)),
-                            size: 16.0,
-                            color: Colors.white,
+                      if (!_isReorderMode) ...[
+                        SizedBox(width: 6.0),
+                        InkWell(
+                          onTap: () => _processItem(item),
+                          child: Container(
+                            padding: const EdgeInsets.all(6.0),
+                            decoration: BoxDecoration(
+                              color: FlutterFlowTheme.of(context).primary,
+                              borderRadius: BorderRadius.circular(6.0),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: FlutterFlowTheme.of(context).primary.withValues(alpha: 0.3),
+                                  blurRadius: 4.0,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              (item.type == ContentType.image 
+                                ? (item.ocrStatus == 'completed' ? Icons.refresh : Icons.play_arrow)
+                                : (item.transcriptionStatus == 'completed' ? Icons.refresh : Icons.play_arrow)),
+                              size: 16.0,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
-                      ),
-                      // Delete button
-                      SizedBox(width: 6.0),
-                      InkWell(
-                        onTap: () async {
-                          final confirmed = await showDialog<bool>(
-                            context: context,
-                            barrierDismissible: false,
-                            builder: (context) => Dialog(
-                              backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10.0),
-                              ),
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(maxWidth: 320),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12.0),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
+                        // Delete button
+                        SizedBox(width: 6.0),
+                        InkWell(
+                          onTap: () async {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (context) => Dialog(
+                                backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10.0),
+                                ),
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(maxWidth: 320),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12.0),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
                                       Row(
                                         children: [
                                           Icon(
@@ -1402,7 +1687,8 @@ class _ContentAreaState extends State<ContentArea> {
                             color: Colors.white,
                           ),
                         ),
-                      ),
+                        ),
+                      ],
                       if (item.type == ContentType.audio && item.durationSeconds != null) ...[
                         SizedBox(width: 6.0),
                         Container(
@@ -1441,6 +1727,83 @@ class _ContentAreaState extends State<ContentArea> {
         ),
       ),
     );
+
+    // Wrap with drag-drop if in reorder mode
+    if (_isReorderMode) {
+      final screenWidth = MediaQuery.of(context).size.width;
+      final isMobile = screenWidth < 600;
+      int baseCrossAxisCount = isMobile ? 2 : 3;
+      int crossAxisCount = (baseCrossAxisCount / _zoomLevel).round().clamp(1, 8);
+      
+      // Calculate item size based on grid layout
+      final padding = 16.0 * 2; // horizontal padding on both sides
+      final spacing = 12.0 * (crossAxisCount - 1);
+      final availableWidth = screenWidth - padding;
+      final itemWidth = (availableWidth - spacing) / crossAxisCount;
+      final itemHeight = itemWidth / 0.8; // childAspectRatio is 0.8
+      
+      return Draggable<int>(
+        data: index,
+        onDragStarted: () => _onItemDragStarted(index),
+        onDragEnd: (_) => _onItemDragEnded(),
+        feedback: SizedBox(
+          width: itemWidth,
+          height: itemHeight,
+          child: Material(
+            child: Opacity(
+              opacity: 0.7,
+              child: Transform.scale(
+                scale: 0.9,
+                child: gridItemWidget,
+              ),
+            ),
+          ),
+        ),
+        childWhenDragging: Opacity(
+          opacity: 0.3,
+          child: gridItemWidget,
+        ),
+        child: DragTarget<int>(
+          onMove: (DragTargetDetails<int> details) {
+            _onItemDragOver(index);
+            // Auto-scroll when dragging near edges
+            _handleDragAutoScroll(details.offset);
+          },
+          onLeave: (_) {
+            setState(() => _dragOverIndex = null);
+          },
+          onAcceptWithDetails: (DragTargetDetails<int> details) {
+            final draggedIndex = details.data;
+            if (draggedIndex != index) {
+              _onItemDropped(draggedIndex, index);
+            }
+            _onItemDragEnded();
+          },
+          builder: (context, candidateData, rejectedData) {
+            return Stack(
+              children: [
+                gridItemWidget,
+                // Drop indicator
+                if (candidateData.isNotEmpty || isDragOver)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: FlutterFlowTheme.of(context).success,
+                          width: 2.0,
+                        ),
+                        borderRadius: BorderRadius.circular(12.0),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      );
+    }
+
+    return gridItemWidget;
   }
 
   Widget _buildAudioWaveform() {

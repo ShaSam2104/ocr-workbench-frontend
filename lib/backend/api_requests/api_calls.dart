@@ -532,15 +532,21 @@ class UpdateImageOrderCall {
   Future<ApiCallResponse> call({
     int? chapterId,
     String? hTTPBearer = '',
-    int? currentSequenceNumber,
-    int? newSequenceNumber,
+    List<Map<String, int>>? reordersList,
   }) async {
     final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
+    final reorders = reordersList ?? [];
+    
+    // Build the images array
+    final imagesArray = reorders.map((item) => '''{
+      "current_sequence_number": ${item['currentSequenceNumber']},
+      "new_sequence_number": ${item['newSequenceNumber']}
+    }''').join(',');
 
-    final ffApiRequestBody = '''
-{
-  "current_sequence_number": ${currentSequenceNumber},
-  "new_sequence_number": ${newSequenceNumber}
+    final ffApiRequestBody = '''{
+  "images": [
+    ${imagesArray}
+  ]
 }''';
     return ApiManager.instance.makeApiCall(
       callName: 'Update Image Order',
@@ -566,18 +572,24 @@ class UpdateAudiosOrderCall {
   Future<ApiCallResponse> call({
     int? chapterId,
     String? hTTPBearer = '',
-    int? currentSequenceNumber,
-    int? newSequenceNumber,
+    List<Map<String, int>>? reordersList,
   }) async {
     final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
+    final reorders = reordersList ?? [];
+    
+    // Build the audios array
+    final audiosArray = reorders.map((item) => '''{
+      "current_sequence_number": ${item['currentSequenceNumber']},
+      "new_sequence_number": ${item['newSequenceNumber']}
+    }''').join(',');
 
-    final ffApiRequestBody = '''
-{
-  "current_sequence_number": ${currentSequenceNumber},
-  "new_sequence_number": ${newSequenceNumber}
+    final ffApiRequestBody = '''{
+  "audios": [
+    ${audiosArray}
+  ]
 }''';
     return ApiManager.instance.makeApiCall(
-      callName: 'Update Audios Order ',
+      callName: 'Update Audios Order',
       apiUrl: '${baseUrl}/chapters/${chapterId}/audios/reorder',
       callType: ApiCallType.PUT,
       headers: {
