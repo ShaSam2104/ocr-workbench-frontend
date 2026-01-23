@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -8,7 +9,7 @@ import '/backend/api_requests/api_calls.dart';
 import '/auth/custom_auth/auth_util.dart';
 import '/toasts/toast_manager.dart';
 
-enum ScrollDirection { up, down }
+enum ScrollDirection { up, down, none }
 
 class ContentArea extends StatefulWidget {
   const ContentArea({
@@ -26,7 +27,7 @@ class ContentArea extends StatefulWidget {
   State<ContentArea> createState() => _ContentAreaState();
 }
 
-class _ContentAreaState extends State<ContentArea> {
+class _ContentAreaState extends State<ContentArea> with TickerProviderStateMixin {
   late FocusNode _focusNode;
   late ScrollController _imageScrollController;
   late ScrollController _audioScrollController;
@@ -62,8 +63,13 @@ class _ContentAreaState extends State<ContentArea> {
   int? _draggedIndex;
   int? _dragOverIndex;
   bool _isApiCallInProgress = false;
-  Timer? _autoScrollTimer;
-  double _lastDragY = 0;
+
+  // Smooth auto-scroll with Ticker
+  Ticker? _autoScrollTicker;
+  ScrollDirection _currentScrollDirection = ScrollDirection.none;
+  double _scrollVelocity = 0.0;
+  double _targetScrollVelocity = 0.0;
+  DateTime? _lastFrameTime;
 
   @override
   void initState() {
@@ -104,7 +110,7 @@ class _ContentAreaState extends State<ContentArea> {
     _focusNode.dispose();
     _imageScrollController.dispose();
     _audioScrollController.dispose();
-    _autoScrollTimer?.cancel();
+    _autoScrollTicker?.dispose();
     super.dispose();
   }
 
@@ -756,8 +762,7 @@ class _ContentAreaState extends State<ContentArea> {
       _draggedIndex = null;
       _dragOverIndex = null;
     });
-    _autoScrollTimer?.cancel();
-    _autoScrollTimer = null;
+    _stopAutoScroll();
   }
 
   void _onItemDragOver(int index) {
@@ -842,80 +847,149 @@ class _ContentAreaState extends State<ContentArea> {
     }
   }
 
-  void _handleDragAutoScroll(Offset position) {
+  void _handleDragAutoScroll(Offset globalPosition) {
     final scrollController = _selectedTab == 0 ? _imageScrollController : _audioScrollController;
     if (!scrollController.hasClients) return;
 
-    _lastDragY = position.dy;
-    
-    // Get scroll view bounds - estimate based on screen
-    final screenHeight = MediaQuery.of(context).size.height;
-    final gridAreaStart = 200; // Approximate start of grid (after header/tabs)
-    final gridAreaEnd = screenHeight - 50; // Approximate end (before bottom)
-    
-    // Define scroll trigger zones
-    const double triggerZoneHeight = 100.0;
-    
-    final double topBound = gridAreaStart + triggerZoneHeight;
-    final double bottomBound = gridAreaEnd - triggerZoneHeight;
-    
-    // Check if in trigger zones
-    if (position.dy > bottomBound) {
-      // Near bottom - start scrolling down
-      _startAutoScroll(scrollDirection: ScrollDirection.down, scrollController: scrollController);
-    } else if (position.dy < topBound) {
-      // Near top - start scrolling up
-      _startAutoScroll(scrollDirection: ScrollDirection.up, scrollController: scrollController);
-    } else {
-      // In middle zone - stop auto-scroll
-      _autoScrollTimer?.cancel();
-      _autoScrollTimer = null;
+    // Get the render box of the entire ContentArea widget
+    final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    try {
+      // Convert global position to local coordinates relative to this widget
+      final Offset localPosition = renderBox.globalToLocal(globalPosition);
+      final Size widgetSize = renderBox.size;
+      
+      // Get screen height for better trigger zone calculation
+      final double screenHeight = MediaQuery.of(context).size.height;
+      
+      // More generous trigger zones
+      const double topTriggerZone = 120.0; // Larger top trigger zone
+      const double bottomTriggerZone = 100.0; // Bottom trigger zone
+      const double maxVelocityDistance = 80.0; // Distance for max velocity
+      
+      // Calculate trigger boundaries relative to the widget
+      // For top: allow scrolling up when dragging anywhere in upper portion (including tab bar area)
+      final double topTrigger = topTriggerZone;
+      final double bottomTrigger = widgetSize.height - bottomTriggerZone;
+      
+      // Calculate normalized distance into trigger zone (0.0 to 1.0)
+      ScrollDirection newDirection = ScrollDirection.none;
+      double velocityFactor = 0.0;
+
+      // Check for upward scroll trigger (more generous - includes tab bar area)
+      if (localPosition.dy < topTrigger) {
+        // Near top - scroll up
+        newDirection = ScrollDirection.up;
+        final distanceIntoZone = topTrigger - localPosition.dy;
+        velocityFactor = (distanceIntoZone / maxVelocityDistance).clamp(0.0, 1.0);
+      }
+      // Check for downward scroll trigger
+      else if (localPosition.dy > bottomTrigger && localPosition.dy < widgetSize.height) {
+        // Near bottom - scroll down (only when still within widget bounds)
+        newDirection = ScrollDirection.down;
+        final distanceIntoZone = localPosition.dy - bottomTrigger;
+        velocityFactor = (distanceIntoZone / maxVelocityDistance).clamp(0.0, 1.0);
+      }
+      // Stop scrolling if drag moves completely outside reasonable bounds
+      else if (localPosition.dy > widgetSize.height + 50 || 
+               localPosition.dx < -50 || localPosition.dx > widgetSize.width + 50) {
+        _stopAutoScroll();
+        return;
+      }
+
+      // Calculate target velocity with exponential curve for smoother feel
+      // Base speed: 200 px/s, Max speed: 800 px/s (slightly reduced for better control)
+      const double baseSpeed = 200.0;
+      const double maxSpeed = 800.0;
+      final double targetVelocity = baseSpeed + (maxSpeed - baseSpeed) * (velocityFactor * velocityFactor);
+
+      final double newTargetVelocity = newDirection == ScrollDirection.up ? -targetVelocity :
+                                       newDirection == ScrollDirection.down ? targetVelocity : 0.0;
+
+      // Only update if direction changed or stopped
+      if (_currentScrollDirection != newDirection) {
+        _targetScrollVelocity = newTargetVelocity;
+        
+        if (newDirection != ScrollDirection.none && _autoScrollTicker == null) {
+          _startAutoScrollTicker(scrollController);
+        } else if (newDirection == ScrollDirection.none) {
+          _stopAutoScroll();
+        }
+        
+        _currentScrollDirection = newDirection;
+      } else if (newDirection != ScrollDirection.none) {
+        // Update velocity smoothly if still in same direction
+        _targetScrollVelocity = newTargetVelocity;
+      }
+    } catch (e) {
+      // If coordinate conversion fails, stop auto-scroll
+      _stopAutoScroll();
     }
   }
 
-  void _startAutoScroll({required ScrollDirection scrollDirection, required ScrollController scrollController}) {
-    // Only create timer if not already running in the same direction
-    if (_autoScrollTimer != null) return;
-
-    _autoScrollTimer = Timer.periodic(Duration(milliseconds: 50), (timer) {
+  void _startAutoScrollTicker(ScrollController scrollController) {
+    _autoScrollTicker = createTicker((elapsed) {
       if (!scrollController.hasClients) {
-        timer.cancel();
-        _autoScrollTimer = null;
+        _stopAutoScroll();
+        return;
+      }
+
+      final now = DateTime.now();
+      final dt = _lastFrameTime != null
+          ? now.difference(_lastFrameTime!).inMicroseconds / 1000000.0
+          : 1.0 / 60.0;
+      _lastFrameTime = now;
+
+      // Clamp dt to reasonable bounds to prevent jumps
+      final clampedDt = dt.clamp(1.0 / 120.0, 1.0 / 30.0);
+
+      // More responsive velocity interpolation for stopping
+      const double velocityLerpFactor = 12.0; // Higher for faster response to stops
+      _scrollVelocity = _scrollVelocity + (_targetScrollVelocity - _scrollVelocity) * velocityLerpFactor * clampedDt;
+
+      // Stop if target velocity is 0 and current velocity is very low
+      if (_targetScrollVelocity == 0.0 && _scrollVelocity.abs() < 5.0) {
+        _stopAutoScroll();
+        return;
+      }
+      
+      // Stop if velocity is negligible
+      if (_scrollVelocity.abs() < 0.5) {
+        _scrollVelocity = 0.0;
+        _stopAutoScroll();
         return;
       }
 
       final currentScroll = scrollController.position.pixels;
       final maxScroll = scrollController.position.maxScrollExtent;
       final minScroll = scrollController.position.minScrollExtent;
-      
-      double newScroll;
-      
-      if (scrollDirection == ScrollDirection.down) {
-        // Calculate scroll distance based on how far into the trigger zone we are
-        final screenHeight = MediaQuery.of(context).size.height;
-        final gridAreaEnd = screenHeight - 50;
-        final triggerZoneHeight = 100.0;
-        final distanceIntoZone = (_lastDragY - (gridAreaEnd - triggerZoneHeight)).clamp(0, triggerZoneHeight);
-        final scrollSpeed = 15.0 + (distanceIntoZone / triggerZoneHeight) * 25.0; // 15-40 pixels per tick
-        
-        newScroll = (currentScroll + scrollSpeed).clamp(minScroll, maxScroll);
-      } else {
-        // Scroll up
-        final gridAreaStart = 200;
-        final triggerZoneHeight = 100.0;
-        final distanceIntoZone = ((gridAreaStart + triggerZoneHeight) - _lastDragY).clamp(0, triggerZoneHeight);
-        final scrollSpeed = 15.0 + (distanceIntoZone / triggerZoneHeight) * 25.0; // 15-40 pixels per tick
-        
-        newScroll = (currentScroll - scrollSpeed).clamp(minScroll, maxScroll);
+
+      // Calculate new position with delta time
+      final deltaScroll = _scrollVelocity * clampedDt;
+      final newScroll = (currentScroll + deltaScroll).clamp(minScroll, maxScroll);
+
+      // Check if we've hit a boundary and stop auto-scroll
+      if ((newScroll <= minScroll && _scrollVelocity < 0) || 
+          (newScroll >= maxScroll && _scrollVelocity > 0)) {
+        _stopAutoScroll();
+        return;
       }
 
-      // Use animate to smooth scroll
-      scrollController.animateTo(
-        newScroll,
-        duration: Duration(milliseconds: 50),
-        curve: Curves.linear,
-      );
+      // Use jumpTo for instant, smooth updates
+      scrollController.jumpTo(newScroll);
     });
+
+    _autoScrollTicker!.start();
+  }
+
+  void _stopAutoScroll() {
+    _autoScrollTicker?.dispose();
+    _autoScrollTicker = null;
+    _scrollVelocity = 0.0;
+    _targetScrollVelocity = 0.0;
+    _currentScrollDirection = ScrollDirection.none;
+    _lastFrameTime = null;
   }
 
   void _showItemDetail(int index) {
@@ -1746,6 +1820,10 @@ class _ContentAreaState extends State<ContentArea> {
         data: index,
         onDragStarted: () => _onItemDragStarted(index),
         onDragEnd: (_) => _onItemDragEnded(),
+        onDragUpdate: (DragUpdateDetails details) {
+          // Use global position for auto-scroll calculation
+          _handleDragAutoScroll(details.globalPosition);
+        },
         feedback: SizedBox(
           width: itemWidth,
           height: itemHeight,
@@ -1766,8 +1844,6 @@ class _ContentAreaState extends State<ContentArea> {
         child: DragTarget<int>(
           onMove: (DragTargetDetails<int> details) {
             _onItemDragOver(index);
-            // Auto-scroll when dragging near edges
-            _handleDragAutoScroll(details.offset);
           },
           onLeave: (_) {
             setState(() => _dragOverIndex = null);
