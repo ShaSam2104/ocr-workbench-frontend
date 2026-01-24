@@ -1016,7 +1016,6 @@ class SearchAudiosByNumberCall {
 
 class SearchImagesByTextCall {
   Future<ApiCallResponse> call({
-    int? chapterId,
     String? textQuery = '',
     String? hTTPBearer = '',
   }) async {
@@ -1030,7 +1029,6 @@ class SearchImagesByTextCall {
         'Authorization': 'Bearer ${hTTPBearer}',
       },
       params: {
-        'chapter_id': chapterId,
         'text_query': textQuery,
       },
       returnBody: true,
@@ -1045,7 +1043,6 @@ class SearchImagesByTextCall {
 
 class SearchAudiosByTextCall {
   Future<ApiCallResponse> call({
-    int? chapterId,
     String? textQuery = '',
     String? hTTPBearer = '',
   }) async {
@@ -1059,7 +1056,6 @@ class SearchAudiosByTextCall {
         'Authorization': 'Bearer ${hTTPBearer}',
       },
       params: {
-        'chapter_id': chapterId,
         'text_query': textQuery,
       },
       returnBody: true,
