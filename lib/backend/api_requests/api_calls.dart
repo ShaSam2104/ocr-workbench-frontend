@@ -798,13 +798,17 @@ class ProcessImagesOcrCall {
   Future<ApiCallResponse> call({
     String? hTTPBearer = '',
     List<int>? imageIdsList,
+    String? model = 'lower',
+    String? customPrompt = '',
   }) async {
     final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
     final imageIds = _serializeList(imageIdsList);
 
     final ffApiRequestBody = '''
 {
-  "image_ids": ${imageIds}
+  "image_ids": ${imageIds},
+  "model": "${escapeStringForJson(model)}",
+  "custom_prompt": "${escapeStringForJson(customPrompt)}"
 }''';
     return ApiManager.instance.makeApiCall(
       callName: 'Process Images Ocr',
@@ -856,6 +860,8 @@ class TranscribeAudiosCall {
     String? hTTPBearer = '',
     List<int>? audioIdsList,
     String? languageHint = '',
+    String? model = 'lower',
+    String? customPrompt = '',
   }) async {
     final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
     final audioIds = _serializeList(audioIdsList);
@@ -863,7 +869,9 @@ class TranscribeAudiosCall {
     final ffApiRequestBody = '''
 {
   "audio_ids": ${audioIds},
-  "language_hint": "${escapeStringForJson(languageHint)}"
+  "language_hint": "${escapeStringForJson(languageHint)}",
+  "model": "${escapeStringForJson(model)}",
+  "custom_prompt": "${escapeStringForJson(customPrompt)}"
 }''';
     return ApiManager.instance.makeApiCall(
       callName: 'Transcribe Audios',
