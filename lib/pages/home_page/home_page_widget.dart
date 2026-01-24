@@ -6,7 +6,6 @@ import '/components/modals/confirm_dialog.dart';
 import '/components/modals/search_modal_enhanced.dart';
 import '/components/modals/new_book_dialog.dart';
 import '/components/utils/global_keyboard_shortcuts.dart';
-import '/components/utils/user_menu.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/sidebar/book_sidebar/book_sidebar_enhanced.dart';
@@ -110,6 +109,7 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                     BookSidebarEnhanced(
                       key: _sidebarKey,
                       selectedBookId: _selectedBookId,
+                      selectedChapterId: _selectedChapterId,
                       onBookSelected: (bookId) {
                         setState(() {
                           _selectedBookId = bookId;
@@ -143,142 +143,30 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                         _model.showSearchModal = true;
                         safeSetState(() {});
                       },
+                      onExport: () {
+                        if (_selectedChapterId != null) {
+                          _model.showExportModal = true;
+                          safeSetState(() {});
+                        }
+                      },
+                      onShare: () {
+                        if (_selectedChapterId != null) {
+                          print('Share tapped for chapter: $_selectedChapterId');
+                          // TODO: Implement share functionality
+                        }
+                      },
+                      onShowHelp: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => const KeyboardShortcutsModal(),
+                        );
+                      },
                     ),
                     // Main Content Area
                     Expanded(
                       child: Column(
                         mainAxisSize: MainAxisSize.max,
                         children: [
-                          // Minimal Header
-                          Container(
-                            padding: EdgeInsetsDirectional.fromSTEB(
-                                24.0, 14.0, 24.0, 14.0),
-                            decoration: BoxDecoration(
-                              color: FlutterFlowTheme.of(context)
-                                  .primaryBackground
-                                  .withOpacity(0.95),
-                              border: Border(
-                                bottom: BorderSide(
-                                  color: FlutterFlowTheme.of(context)
-                                      .alternate
-                                      .withOpacity(0.5),
-                                  width: 1.0,
-                                ),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.max,
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                // Help Icon
-                                Tooltip(
-                                  message: 'Keyboard shortcuts ($_modifierKey + ?)',
-                                  child: InkWell(
-                                    onTap: () {
-                                      showDialog(
-                                        context: context,
-                                        builder: (context) =>
-                                            const KeyboardShortcutsModal(),
-                                      );
-                                    },
-                                    borderRadius: BorderRadius.circular(6.0),
-                                    child: Container(
-                                      padding: EdgeInsets.all(8.0),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(6.0),
-                                      ),
-                                      child: Icon(
-                                        Icons.help_outline,
-                                        size: 18.0,
-                                        color: FlutterFlowTheme.of(context)
-                                            .secondaryText,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(width: 2.0),
-                                // Export Icon
-                                Tooltip(
-                                  message: 'Export ($_modifierKey + E)',
-                                  child: InkWell(
-                                    onTap: () {
-                                      _model.showExportModal = true;
-                                      safeSetState(() {});
-                                    },
-                                    borderRadius: BorderRadius.circular(6.0),
-                                    child: Container(
-                                      padding: EdgeInsets.all(8.0),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(6.0),
-                                      ),
-                                      child: Icon(
-                                        Icons.download_outlined,
-                                        size: 18.0,
-                                        color: FlutterFlowTheme.of(context)
-                                            .secondaryText,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(width: 8.0),
-                                // Share Button
-                                InkWell(
-                                  onTap: () {
-                                    print('Share pressed');
-                                  },
-                                  borderRadius: BorderRadius.circular(6.0),
-                                  child: Container(
-                                    padding: EdgeInsetsDirectional.fromSTEB(
-                                        12.0, 6.0, 12.0, 6.0),
-                                    decoration: BoxDecoration(
-                                      color: Colors.transparent,
-                                      borderRadius: BorderRadius.circular(6.0),
-                                      border: Border.all(
-                                        color: FlutterFlowTheme.of(context)
-                                            .alternate
-                                            .withOpacity(0.6),
-                                        width: 1.0,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.ios_share,
-                                          size: 14.0,
-                                          color: FlutterFlowTheme.of(context)
-                                              .secondaryText,
-                                        ),
-                                        SizedBox(width: 6.0),
-                                        Text(
-                                          'Share',
-                                          style: FlutterFlowTheme.of(context)
-                                              .bodyMedium
-                                              .override(
-                                                fontFamily: 'Inter',
-                                                fontSize: 13.0,
-                                                letterSpacing: -0.2,
-                                                fontWeight: FontWeight.w500,
-                                                color:
-                                                    FlutterFlowTheme.of(context)
-                                                        .secondaryText,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(width: 16.0),
-                                // User Menu
-                                UserMenu(
-                                  onProfileTap: () {
-                                    // TODO: Navigate to profile page
-                                    print('Profile tapped');
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
                           // Main Content - Show book page if selected, otherwise empty state
                           Expanded(
                             child: _selectedBookId != null

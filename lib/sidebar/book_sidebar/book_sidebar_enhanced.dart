@@ -9,6 +9,7 @@ import '/backend/schema/book.dart';
 import '/backend/schema/chapter.dart';
 import '/components/modals/new_chapter_dialog.dart';
 import '/toasts/toast_manager.dart';
+import '/app_state.dart';
 
 class BookSidebarEnhanced extends StatefulWidget {
   const BookSidebarEnhanced({
@@ -18,7 +19,11 @@ class BookSidebarEnhanced extends StatefulWidget {
     required this.onNewBook,
     required this.onNewChapter,
     required this.onSearch,
+    required this.onExport,
+    required this.onShare,
+    required this.onShowHelp,
     this.selectedBookId,
+    this.selectedChapterId,
   });
 
   final Function(int bookId) onBookSelected;
@@ -26,7 +31,11 @@ class BookSidebarEnhanced extends StatefulWidget {
   final VoidCallback onNewBook;
   final VoidCallback onNewChapter;
   final VoidCallback onSearch;
+  final VoidCallback onExport;
+  final VoidCallback onShare;
+  final VoidCallback onShowHelp;
   final int? selectedBookId;
+  final int? selectedChapterId;
 
   @override
   State<BookSidebarEnhanced> createState() => BookSidebarEnhancedState();
@@ -44,6 +53,7 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
   List<NavigationItem> _navigationItems = [];
   List<NavigationItem> _filteredNavigationItems = [];
   bool _isLoading = true;
+  bool _isSidebarCollapsed = false;
 
   @override
   void initState() {
@@ -605,16 +615,19 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
     final isMobile = MediaQuery.of(context).size.width < 600;
     final isTablet =
         MediaQuery.of(context).size.width >= 600 && MediaQuery.of(context).size.width < 1200;
-    final sidebarWidth = isMobile
+    final expandedSidebarWidth = isMobile
         ? MediaQuery.of(context).size.width * 0.8
         : isTablet
             ? 300.0
             : 280.0;
+    final collapsedSidebarWidth = 70.0;
+    final sidebarWidth = _isSidebarCollapsed ? collapsedSidebarWidth : expandedSidebarWidth;
 
     return KeyboardListener(
       focusNode: _focusNode,
       onKeyEvent: _handleKeyEvent,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         width: sidebarWidth,
         height: MediaQuery.of(context).size.height,
         decoration: BoxDecoration(
@@ -628,42 +641,94 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
         ),
         child: Column(
           children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Books',
-                    style: FlutterFlowTheme.of(context).headlineSmall.override(
-                          font: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-                          fontSize: 20.0,
+            // Collapse Button & Header
+            if (!_isSidebarCollapsed)
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Books',
+                          style: FlutterFlowTheme.of(context).headlineSmall.override(
+                                font: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+                                fontSize: 20.0,
+                              ),
                         ),
-                  ),
-                  const SizedBox(height: 8.0),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildSearchHint(),
+                        Tooltip(
+                          message: 'Collapse sidebar',
+                          child: InkWell(
+                            onTap: () => setState(() => _isSidebarCollapsed = true),
+                            borderRadius: BorderRadius.circular(6.0),
+                            child: Container(
+                              padding: const EdgeInsets.all(6.0),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(6.0),
+                              ),
+                              child: Icon(
+                                Icons.chevron_left,
+                                size: 20.0,
+                                color: FlutterFlowTheme.of(context).secondaryText,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8.0),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildSearchHint(),
+                        ),
+                        const SizedBox(width: 8.0),
+                        _buildNewBookButton(),
+                      ],
+                    ),
+                  ],
+                ),
+              )
+            else
+              // Collapsed state - expand button at top
+              Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Tooltip(
+                  message: 'Expand sidebar',
+                  child: InkWell(
+                    onTap: () => setState(() => _isSidebarCollapsed = false),
+                    borderRadius: BorderRadius.circular(6.0),
+                    child: Container(
+                      padding: const EdgeInsets.all(8.0),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6.0),
                       ),
-                      const SizedBox(width: 8.0),
-                      _buildNewBookButton(),
-                    ],
+                      child: Icon(
+                        Icons.chevron_right,
+                        size: 20.0,
+                        color: FlutterFlowTheme.of(context).secondaryText,
+                      ),
+                    ),
                   ),
-                ],
+                ),
               ),
-            ),
-            Divider(
-              height: 1.0,
-              color: FlutterFlowTheme.of(context).alternate,
-            ),
+            if (!_isSidebarCollapsed)
+              Divider(
+                height: 1.0,
+                color: FlutterFlowTheme.of(context).alternate,
+              ),
             // Books List
             Expanded(
               child: _isLoading
                   ? _buildSkeletonLoader()
-                  : _buildBooksList(),
+                  : _isSidebarCollapsed
+                      ? _buildCollapsedBooksList()
+                      : _buildBooksList(),
             ),
+            // Footer with Action Buttons
+            _buildSidebarFooter(),
           ],
         ),
       ),
@@ -1153,6 +1218,281 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
           // Reload chapters for this book
           _toggleBookExpansion(bookId, null);
         },
+      ),
+    );
+  }
+
+  Widget _buildCollapsedBooksList() {
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
+        child: Column(
+          children: _navigationItems
+              .where((item) => item.itemType == ItemType.book)
+              .map((book) {
+                return Tooltip(
+                  message: book.name,
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8.0),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                    child: InkWell(
+                      onTap: () => widget.onBookSelected(book.id),
+                      borderRadius: BorderRadius.circular(8.0),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Icon(
+                          Icons.book,
+                          size: 20.0,
+                          color: FlutterFlowTheme.of(context).secondaryText,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              })
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSidebarFooter() {
+    if (_isSidebarCollapsed) {
+      // Compact vertical layout for collapsed state
+      return Container(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(
+              color: FlutterFlowTheme.of(context).alternate,
+              width: 1,
+            ),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Help
+            Tooltip(
+              message: 'Help',
+              child: InkWell(
+                onTap: widget.onShowHelp,
+                borderRadius: BorderRadius.circular(6.0),
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Icon(
+                    Icons.help_outline,
+                    size: 18.0,
+                    color: FlutterFlowTheme.of(context).secondaryText,
+                  ),
+                ),
+              ),
+            ),
+            // Export (only if book/chapter selected)
+            if (widget.selectedBookId != null)
+              Tooltip(
+                message: 'Export',
+                child: InkWell(
+                  onTap: widget.onExport,
+                  borderRadius: BorderRadius.circular(6.0),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Icon(
+                      Icons.download_outlined,
+                      size: 18.0,
+                      color: FlutterFlowTheme.of(context).secondaryText,
+                    ),
+                  ),
+                ),
+              ),
+            // Theme Toggle
+            Tooltip(
+              message: 'Toggle theme',
+              child: InkWell(
+                onTap: () {
+                  final appState = FFAppState();
+                  appState.setThemeMode(!appState.isLightMode);
+                },
+                borderRadius: BorderRadius.circular(6.0),
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Icon(
+                    FFAppState().isLightMode
+                        ? Icons.brightness_7
+                        : Icons.brightness_4,
+                    size: 18.0,
+                    color: FlutterFlowTheme.of(context).secondaryText,
+                  ),
+                ),
+              ),
+            ),
+            // Logout
+            Tooltip(
+              message: 'Logout',
+              child: InkWell(
+                onTap: () {
+                  // TODO: Implement logout
+                  print('Logout tapped');
+                },
+                borderRadius: BorderRadius.circular(6.0),
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Icon(
+                    Icons.logout,
+                    size: 18.0,
+                    color: FlutterFlowTheme.of(context).secondaryText,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Expanded state - horizontal layout
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(
+            color: FlutterFlowTheme.of(context).alternate,
+            width: 1,
+          ),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Left side - Help + Export (if book selected)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Help
+                Tooltip(
+                  message: 'Help',
+                  child: InkWell(
+                    onTap: widget.onShowHelp,
+                    borderRadius: BorderRadius.circular(6.0),
+                    child: Container(
+                      padding: const EdgeInsets.all(8.0),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6.0),
+                      ),
+                      child: Icon(
+                        Icons.help_outline,
+                        size: 16.0,
+                        color: FlutterFlowTheme.of(context).secondaryText,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8.0),
+                // Export (only if book/chapter selected)
+                if (widget.selectedBookId != null)
+                  Tooltip(
+                    message: 'Export',
+                    child: InkWell(
+                      onTap: widget.onExport,
+                      borderRadius: BorderRadius.circular(6.0),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(6.0),
+                          border: Border.all(
+                            color: FlutterFlowTheme.of(context)
+                                .alternate
+                                .withOpacity(0.6),
+                            width: 1.0,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.download_outlined,
+                              size: 14.0,
+                              color: FlutterFlowTheme.of(context).secondaryText,
+                            ),
+                            const SizedBox(width: 4.0),
+                            Text(
+                              'Export',
+                              style: FlutterFlowTheme.of(context)
+                                  .labelSmall
+                                  .override(
+                                    fontSize: 11.0,
+                                    color: FlutterFlowTheme.of(context)
+                                        .secondaryText,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                const SizedBox(width: 16.0),
+              ],
+            ),
+            // Right side - Theme, Logout
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Theme Toggle
+                Tooltip(
+                  message: 'Toggle theme',
+                  child: InkWell(
+                    onTap: () {
+                      final appState = FFAppState();
+                      appState.setThemeMode(!appState.isLightMode);
+                    },
+                    borderRadius: BorderRadius.circular(6.0),
+                    child: Container(
+                      padding: const EdgeInsets.all(8.0),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6.0),
+                      ),
+                      child: Icon(
+                        FFAppState().isLightMode
+                            ? Icons.brightness_7
+                            : Icons.brightness_4,
+                        size: 16.0,
+                        color: FlutterFlowTheme.of(context).secondaryText,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8.0),
+                // Logout
+                Tooltip(
+                  message: 'Logout',
+                  child: InkWell(
+                    onTap: () {
+                      // TODO: Implement logout
+                      print('Logout tapped');
+                    },
+                    borderRadius: BorderRadius.circular(6.0),
+                    child: Container(
+                      padding: const EdgeInsets.all(8.0),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6.0),
+                      ),
+                      child: Icon(
+                        Icons.logout,
+                        size: 16.0,
+                        color: FlutterFlowTheme.of(context).secondaryText,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
