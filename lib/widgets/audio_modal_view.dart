@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/backend/api_requests/api_calls.dart';
@@ -6,6 +7,7 @@ import '/auth/custom_auth/auth_util.dart';
 import '/toasts/toast_manager.dart';
 import '/models/content_item.dart';
 import '/widgets/audio_player_widget.dart';
+import '/components/modals/transcription_processing_modal.dart';
 
 class AudioModalView extends StatefulWidget {
   final ContentItem item;
@@ -30,6 +32,7 @@ class _AudioModalViewState extends State<AudioModalView> {
   late TextEditingController _textController;
   bool _isSaving = false;
   bool _isProcessing = false;
+  bool _isCopied = false;
 
   @override
   void initState() {
@@ -57,52 +60,50 @@ class _AudioModalViewState extends State<AudioModalView> {
       );
 
       if (result.succeeded) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Transcript saved successfully')),
-        );
+        ToastManager.showSuccess('Transcript saved successfully');
         widget.onUpdate();
         Navigator.pop(context);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save transcript')),
-        );
+        ToastManager.showError('Failed to save transcript');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      ToastManager.showError('Error: $e');
     } finally {
       setState(() => _isSaving = false);
     }
   }
 
   Future<void> _processTranscription() async {
-    setState(() => _isProcessing = true);
-    try {
-      final token = currentAuthenticationToken ?? '';
-      final result = await OCRWorkbenchAPIGroup.transcribeAudiosCall.call(
-        audioIdsList: [widget.item.id],
-        hTTPBearer: token,
-      );
+    showDialog(
+      context: context,
+      builder: (context) => TranscriptionProcessingModal(
+        onProcessing: (customPrompt, model, languageHint) async {
+          setState(() => _isProcessing = true);
+          try {
+            final token = currentAuthenticationToken ?? '';
+            final result = await OCRWorkbenchAPIGroup.transcribeAudiosCall.call(
+              audioIdsList: [widget.item.id],
+              model: model,
+              customPrompt: customPrompt,
+              languageHint: languageHint,
+              hTTPBearer: token,
+            );
 
-      if (result.succeeded) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Transcription started')),
-        );
-        widget.onUpdate();
-        Navigator.pop(context);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to start transcription')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    } finally {
-      setState(() => _isProcessing = false);
-    }
+            if (result.succeeded) {
+              ToastManager.showSuccess('Transcription started');
+              widget.onUpdate();
+              Navigator.pop(context);
+            } else {
+              ToastManager.showError('Failed to start transcription');
+            }
+          } catch (e) {
+            ToastManager.showError('Error: $e');
+          } finally {
+            setState(() => _isProcessing = false);
+          }
+        },
+      ),
+    );
   }
 
   @override
@@ -153,12 +154,34 @@ class _AudioModalViewState extends State<AudioModalView> {
                       ],
                     ),
                   ),
-                  if (hasTranscript)
+                  if (hasTranscript) ...[
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: IconButton(
+                        key: ValueKey(_isCopied),
+                        icon: Icon(
+                          _isCopied ? Icons.check_circle : Icons.copy,
+                          color: _isCopied ? Colors.green : null,
+                        ),
+                        onPressed: _isCopied
+                            ? null
+                            : () {
+                                Clipboard.setData(ClipboardData(text: displayText));
+                                setState(() => _isCopied = true);
+                                ToastManager.showSuccess('Transcript copied to clipboard');
+                                Future.delayed(const Duration(seconds: 2), () {
+                                  if (mounted) setState(() => _isCopied = false);
+                                });
+                              },
+                        tooltip: 'Copy transcript',
+                      ),
+                    ),
                     IconButton(
                       icon: Icon(_isEditMode ? Icons.visibility : Icons.edit),
                       onPressed: () => setState(() => _isEditMode = !_isEditMode),
                       tooltip: _isEditMode ? 'View Mode' : 'Edit Mode',
                     ),
+                  ],
                   IconButton(
                     icon: Icon(Icons.delete_outline),
                     color: Colors.red,

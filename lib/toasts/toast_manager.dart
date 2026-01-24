@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '/flutter_flow/nav/nav.dart';
 
 /// Toast manager for displaying toast notifications globally
 /// Usage:
@@ -10,6 +11,11 @@ import 'package:flutter/services.dart';
 /// - ToastManager.clear()
 class ToastManager {
   static OverlayEntry? _currentToastEntry;
+
+  /// Initialize with a valid context that has an Overlay
+  static void init(BuildContext context) {
+    debugPrint('✅ ToastManager init called (using appNavigatorKey)');
+  }
 
   /// Show a success toast
   static void showSuccess(
@@ -70,52 +76,44 @@ class ToastManager {
     ToastType type,
     Duration duration,
   ) {
-    // Remove existing toast
-    clear();
-
-    // Get the overlay context
-    final BuildContext? context = _findRootContext();
-    if (context == null) return;
-
-    // Create new toast entry
-    _currentToastEntry = OverlayEntry(
-      builder: (context) => _AnimatedToastOverlay(
-        message: message,
-        type: type,
-        duration: duration,
-        onDismiss: clear,
-      ),
-    );
-
-    // Insert into overlay
-    final overlay = Overlay.of(context);
-    overlay.insert(_currentToastEntry!);
-
-    // Auto-dismiss after duration
-    Future.delayed(duration, () {
-      clear();
-    });
-  }
-
-  static BuildContext? _findRootContext() {
-    // Try to find the root navigator's context
     try {
-      final currentContext = navigatorKey.currentContext ?? _globalBuildContext.value;
-      if (currentContext == null) return null;
-      final navigator = Navigator.of(currentContext);
-      return navigator.context;
+      // Remove existing toast
+      clear();
+
+      // Get NavigatorState from appNavigatorKey
+      final navigatorState = appNavigatorKey.currentState;
+      if (navigatorState == null) {
+        debugPrint('❌ Toast ERROR: No NavigatorState available from appNavigatorKey');
+        return;
+      }
+
+      // Get overlay from NavigatorState
+      final overlayState = navigatorState.overlay;
+      if (overlayState == null) {
+        debugPrint('⚠️ NavigatorState has no overlay');
+        return;
+      }
+
+      // Create new toast entry
+      _currentToastEntry = OverlayEntry(
+        builder: (context) => _AnimatedToastOverlay(
+          message: message,
+          type: type,
+          duration: duration,
+          onDismiss: clear,
+        ),
+      );
+
+      // Insert into overlay
+      overlayState.insert(_currentToastEntry!);
+
+      // Auto-dismiss after duration
+      Future.delayed(duration, () {
+        clear();
+      });
     } catch (e) {
-      return _globalBuildContext.value;
+      debugPrint('❌ ToastManager error: $e');
     }
-  }
-
-  static final GlobalKey<NavigatorState> navigatorKey =
-      GlobalKey<NavigatorState>();
-  static final ValueNotifier<BuildContext?> _globalBuildContext =
-      ValueNotifier<BuildContext?>(null);
-
-  static void init(BuildContext context) {
-    _globalBuildContext.value = context;
   }
 }
 
@@ -329,6 +327,7 @@ class _ToastContent extends StatelessWidget {
                       color: _getTextColor(),
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.none,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -338,6 +337,7 @@ class _ToastContent extends StatelessWidget {
                       color: _getTextColor().withValues(alpha: 0.9),
                       fontSize: 12,
                       fontWeight: FontWeight.w400,
+                      decoration: TextDecoration.none,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,

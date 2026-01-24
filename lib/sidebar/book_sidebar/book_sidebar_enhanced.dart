@@ -10,6 +10,7 @@ import '/backend/schema/chapter.dart';
 import '/components/modals/new_chapter_dialog.dart';
 import '/toasts/toast_manager.dart';
 import '/app_state.dart';
+import 'package:go_router/go_router.dart';
 
 class BookSidebarEnhanced extends StatefulWidget {
   const BookSidebarEnhanced({
@@ -606,6 +607,20 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
         });
       } else if (item.itemType == ItemType.newChapterButton && item.bookId != null) {
         _showNewChapterDialog(item.bookId!);
+      }
+    }
+  }
+
+  Future<void> _handleLogout() async {
+    try {
+      await authManager.signOut();
+      if (mounted) {
+        context.goNamed('login');
+        ToastManager.showSuccess('Logged out successfully');
+      }
+    } catch (e) {
+      if (mounted) {
+        ToastManager.showError('Error logging out: $e');
       }
     }
   }
@@ -1270,7 +1285,7 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
             ),
           ),
         ),
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        padding: const EdgeInsets.symmetric(vertical: 12.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1280,16 +1295,17 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
               child: InkWell(
                 onTap: widget.onShowHelp,
                 borderRadius: BorderRadius.circular(6.0),
-                child: Padding(
+                child: Container(
                   padding: const EdgeInsets.all(8.0),
                   child: Icon(
-                    Icons.help_outline,
-                    size: 18.0,
+                    Icons.help_outline_rounded,
+                    size: 20.0,
                     color: FlutterFlowTheme.of(context).secondaryText,
                   ),
                 ),
               ),
             ),
+            const SizedBox(height: 4.0),
             // Export (only if book/chapter selected)
             if (widget.selectedBookId != null)
               Tooltip(
@@ -1297,52 +1313,49 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
                 child: InkWell(
                   onTap: widget.onExport,
                   borderRadius: BorderRadius.circular(6.0),
-                  child: Padding(
+                  child: Container(
                     padding: const EdgeInsets.all(8.0),
                     child: Icon(
-                      Icons.download_outlined,
-                      size: 18.0,
+                      Icons.download_rounded,
+                      size: 20.0,
                       color: FlutterFlowTheme.of(context).secondaryText,
                     ),
                   ),
                 ),
               ),
+            if (widget.selectedBookId != null)
+              const SizedBox(height: 4.0),
             // Theme Toggle
             Tooltip(
               message: 'Toggle theme',
               child: InkWell(
-                onTap: () {
-                  final appState = FFAppState();
-                  appState.setThemeMode(!appState.isLightMode);
-                },
+                onTap: () => FFAppState().setThemeMode(!FFAppState().isLightMode),
                 borderRadius: BorderRadius.circular(6.0),
-                child: Padding(
+                child: Container(
                   padding: const EdgeInsets.all(8.0),
                   child: Icon(
                     FFAppState().isLightMode
-                        ? Icons.brightness_7
-                        : Icons.brightness_4,
-                    size: 18.0,
+                        ? Icons.dark_mode_rounded
+                        : Icons.light_mode_rounded,
+                    size: 20.0,
                     color: FlutterFlowTheme.of(context).secondaryText,
                   ),
                 ),
               ),
             ),
+            const SizedBox(height: 4.0),
             // Logout
             Tooltip(
               message: 'Logout',
               child: InkWell(
-                onTap: () {
-                  // TODO: Implement logout
-                  print('Logout tapped');
-                },
+                onTap: _handleLogout,
                 borderRadius: BorderRadius.circular(6.0),
-                child: Padding(
+                child: Container(
                   padding: const EdgeInsets.all(8.0),
                   child: Icon(
-                    Icons.logout,
-                    size: 18.0,
-                    color: FlutterFlowTheme.of(context).secondaryText,
+                    Icons.logout_rounded,
+                    size: 20.0,
+                    color: FlutterFlowTheme.of(context).error,
                   ),
                 ),
               ),
@@ -1368,128 +1381,146 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Left side - Help + Export (if book selected)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Help
-                Tooltip(
-                  message: 'Help',
-                  child: InkWell(
-                    onTap: widget.onShowHelp,
+            // Help Button
+            Tooltip(
+              message: 'Help & Keyboard Shortcuts',
+              child: InkWell(
+                onTap: widget.onShowHelp,
+                borderRadius: BorderRadius.circular(6.0),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+                  decoration: BoxDecoration(
+                    color: FlutterFlowTheme.of(context).primaryBackground,
                     borderRadius: BorderRadius.circular(6.0),
-                    child: Container(
-                      padding: const EdgeInsets.all(8.0),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(6.0),
-                      ),
-                      child: Icon(
-                        Icons.help_outline,
-                        size: 16.0,
-                        color: FlutterFlowTheme.of(context).secondaryText,
-                      ),
+                    border: Border.all(
+                      color: FlutterFlowTheme.of(context).alternate,
+                      width: 1.0,
                     ),
                   ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.help_outline_rounded,
+                        size: 15.0,
+                        color: FlutterFlowTheme.of(context).secondaryText,
+                      ),
+                      const SizedBox(width: 4.0),
+                      Text(
+                        'Help',
+                        style: FlutterFlowTheme.of(context).labelSmall.override(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 11.0,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 8.0),
-                // Export (only if book/chapter selected)
-                if (widget.selectedBookId != null)
-                  Tooltip(
-                    message: 'Export',
-                    child: InkWell(
-                      onTap: widget.onExport,
+              ),
+            ),
+            const SizedBox(width: 6.0),
+            // Export Button (only if book selected)
+            if (widget.selectedBookId != null)
+              Tooltip(
+                message: 'Export book',
+                child: InkWell(
+                  onTap: widget.onExport,
+                  borderRadius: BorderRadius.circular(6.0),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+                    decoration: BoxDecoration(
+                      color: FlutterFlowTheme.of(context).primaryBackground,
                       borderRadius: BorderRadius.circular(6.0),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
-                        decoration: BoxDecoration(
-                          color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(6.0),
-                          border: Border.all(
-                            color: FlutterFlowTheme.of(context)
-                                .alternate
-                                .withOpacity(0.6),
-                            width: 1.0,
+                      border: Border.all(
+                        color: FlutterFlowTheme.of(context).alternate,
+                        width: 1.0,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.download_rounded,
+                          size: 15.0,
+                          color: FlutterFlowTheme.of(context).secondaryText,
+                        ),
+                        const SizedBox(width: 4.0),
+                        Text(
+                          'Export',
+                          style: FlutterFlowTheme.of(context).labelSmall.override(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 11.0,
                           ),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.download_outlined,
-                              size: 14.0,
-                              color: FlutterFlowTheme.of(context).secondaryText,
-                            ),
-                            const SizedBox(width: 4.0),
-                            Text(
-                              'Export',
-                              style: FlutterFlowTheme.of(context)
-                                  .labelSmall
-                                  .override(
-                                    fontSize: 11.0,
-                                    color: FlutterFlowTheme.of(context)
-                                        .secondaryText,
-                                  ),
-                            ),
-                          ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            if (widget.selectedBookId != null)
+              const SizedBox(width: 6.0),
+            // Theme Toggle
+            Tooltip(
+              message: 'Toggle dark/light mode',
+              child: InkWell(
+                onTap: () => FFAppState().setThemeMode(!FFAppState().isLightMode),
+                borderRadius: BorderRadius.circular(6.0),
+                child: Container(
+                  padding: const EdgeInsets.all(6.0),
+                  decoration: BoxDecoration(
+                    color: FlutterFlowTheme.of(context).primaryBackground,
+                    borderRadius: BorderRadius.circular(6.0),
+                    border: Border.all(
+                      color: FlutterFlowTheme.of(context).alternate,
+                      width: 1.0,
+                    ),
+                  ),
+                  child: Icon(
+                    FFAppState().isLightMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                    size: 15.0,
+                    color: FlutterFlowTheme.of(context).secondaryText,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6.0),
+            // Logout Button
+            Tooltip(
+              message: 'Logout',
+              child: InkWell(
+                onTap: _handleLogout,
+                borderRadius: BorderRadius.circular(6.0),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+                  decoration: BoxDecoration(
+                    color: FlutterFlowTheme.of(context).error.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6.0),
+                    border: Border.all(
+                      color: FlutterFlowTheme.of(context).error.withValues(alpha: 0.3),
+                      width: 1.0,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.logout_rounded,
+                        size: 15.0,
+                        color: FlutterFlowTheme.of(context).error,
+                      ),
+                      const SizedBox(width: 4.0),
+                      Text(
+                        'Logout',
+                        style: FlutterFlowTheme.of(context).labelSmall.override(
+                          color: FlutterFlowTheme.of(context).error,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11.0,
                         ),
                       ),
-                    ),
-                  ),
-                const SizedBox(width: 16.0),
-              ],
-            ),
-            // Right side - Theme, Logout
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Theme Toggle
-                Tooltip(
-                  message: 'Toggle theme',
-                  child: InkWell(
-                    onTap: () {
-                      final appState = FFAppState();
-                      appState.setThemeMode(!appState.isLightMode);
-                    },
-                    borderRadius: BorderRadius.circular(6.0),
-                    child: Container(
-                      padding: const EdgeInsets.all(8.0),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(6.0),
-                      ),
-                      child: Icon(
-                        FFAppState().isLightMode
-                            ? Icons.brightness_7
-                            : Icons.brightness_4,
-                        size: 16.0,
-                        color: FlutterFlowTheme.of(context).secondaryText,
-                      ),
-                    ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8.0),
-                // Logout
-                Tooltip(
-                  message: 'Logout',
-                  child: InkWell(
-                    onTap: () {
-                      // TODO: Implement logout
-                      print('Logout tapped');
-                    },
-                    borderRadius: BorderRadius.circular(6.0),
-                    child: Container(
-                      padding: const EdgeInsets.all(8.0),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(6.0),
-                      ),
-                      child: Icon(
-                        Icons.logout,
-                        size: 16.0,
-                        color: FlutterFlowTheme.of(context).secondaryText,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ],
         ),

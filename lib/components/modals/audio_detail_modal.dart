@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/backend/api_requests/api_calls.dart';
 import '/components/utils/formatted_text_widget.dart';
+import '/toasts/toast_manager.dart';
 
 class AudioDetailModal extends StatefulWidget {
   const AudioDetailModal({
@@ -89,12 +90,7 @@ class _AudioDetailModalState extends State<AudioDetailModal> {
   Future<void> _copyToClipboard() async {
     if (_transcript != null) {
       await Clipboard.setData(ClipboardData(text: _transcript!));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Transcript copied to clipboard'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      ToastManager.showSuccess('Transcript copied to clipboard');
     }
   }
 
@@ -472,11 +468,7 @@ class _AudioDetailModalState extends State<AudioDetailModal> {
                           child: ElevatedButton.icon(
                             onPressed: () {
                               // TODO: Implement export/download
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Export feature coming soon'),
-                                ),
-                              );
+                              ToastManager.showInfo('Export feature coming soon');
                             },
                             icon: const Icon(Icons.download),
                             label: const Text('Export'),

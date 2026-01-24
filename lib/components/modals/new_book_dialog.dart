@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/backend/api_requests/api_calls.dart';
 import '/auth/custom_auth/auth_util.dart';
+import '/enums/language.dart';
 
 class NewBookDialog extends StatefulWidget {
   final Function(int bookId, String name) onCreated;
@@ -26,24 +27,21 @@ class _NewBookDialogState extends State<NewBookDialog> with SingleTickerProvider
   String? _errorMessage;
   bool _hasNameError = false;
   
-  // Language selection
-  final Map<String, bool> _selectedLanguages = {
-    'en': true,  // English selected by default
-    'hi': false, // Hindi
-    'gu': false, // Gujarati
-  };
-  
-  final Map<String, String> _languageNames = {
-    'en': 'English',
-    'hi': 'Hindi',
-    'gu': 'Gujarati',
-  };
+  // Language selection using enum
+  late Map<LanguageCode, bool> _selectedLanguages;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController();
     _descriptionController = TextEditingController();
+    
+    // Initialize language selection with enum
+    _selectedLanguages = {
+      LanguageCode.english: true,
+      LanguageCode.hindi: false,
+      LanguageCode.sanskrit: false,
+    };
     
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 300),
@@ -82,10 +80,10 @@ class _NewBookDialogState extends State<NewBookDialog> with SingleTickerProvider
       return;
     }
 
-    // Get selected languages
+    // Get selected languages using enum codes
     final selectedLangs = _selectedLanguages.entries
         .where((entry) => entry.value)
-        .map((entry) => entry.key)
+        .map((entry) => entry.key.code)
         .toList();
     
     if (selectedLangs.isEmpty) {
@@ -366,12 +364,12 @@ class _NewBookDialogState extends State<NewBookDialog> with SingleTickerProvider
                       Wrap(
                         spacing: 8.0,
                         runSpacing: 8.0,
-                        children: _selectedLanguages.keys.map((langCode) {
-                          final isSelected = _selectedLanguages[langCode]!;
+                        children: LanguageCode.values.map((language) {
+                          final isSelected = _selectedLanguages[language] ?? false;
                           return InkWell(
                             onTap: () {
                               setState(() {
-                                _selectedLanguages[langCode] = !isSelected;
+                                _selectedLanguages[language] = !isSelected;
                               });
                             },
                             borderRadius: BorderRadius.circular(4.0),
@@ -403,7 +401,7 @@ class _NewBookDialogState extends State<NewBookDialog> with SingleTickerProvider
                                       ),
                                     ),
                                   Text(
-                                    _languageNames[langCode]!,
+                                    language.displayName,
                                     style: FlutterFlowTheme.of(context)
                                         .bodySmall
                                         .override(

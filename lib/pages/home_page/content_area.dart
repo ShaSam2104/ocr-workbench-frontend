@@ -12,6 +12,8 @@ import '/enums/scroll_direction.dart';
 import '/widgets/image_modal_view.dart';
 import '/widgets/audio_modal_view.dart';
 import '/painters/waveform_painter.dart';
+import '/components/modals/ocr_processing_modal.dart';
+import '/components/modals/transcription_processing_modal.dart';
 
 class ContentArea extends StatefulWidget {
   const ContentArea({
@@ -693,51 +695,67 @@ class _ContentAreaState extends State<ContentArea> with TickerProviderStateMixin
   }
 
   Future<void> _processItem(ContentItem item) async {
-    final token = currentAuthenticationToken ?? '';
-    
-    try {
-      if (item.type == ContentType.image) {
-        final result = await OCRWorkbenchAPIGroup.processImagesOcrCall.call(
-          imageIdsList: [item.id],
-          hTTPBearer: token,
-        );
-        
-        if (result.succeeded) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('OCR processing started for ${item.name}'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          // Refresh content to show updated status
-          await _loadImagesContent();
-        } else {
-          throw Exception('Failed to start OCR processing');
-        }
-      } else {
-        final result = await OCRWorkbenchAPIGroup.transcribeAudiosCall.call(
-          audioIdsList: [item.id],
-          hTTPBearer: token,
-        );
-        
-        if (result.succeeded) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Transcription started for ${item.name}'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          // Refresh content to show updated status
-          await _loadAudiosContent();
-        } else {
-          throw Exception('Failed to start transcription');
-        }
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
+    if (item.type == ContentType.image) {
+      showDialog(
+        context: context,
+        builder: (context) => OcrProcessingModal(
+          onProcessing: (customPrompt, model) async {
+            try {
+              final token = currentAuthenticationToken ?? '';
+              final result = await OCRWorkbenchAPIGroup.processImagesOcrCall.call(
+                imageIdsList: [item.id],
+                model: model,
+                customPrompt: customPrompt,
+                hTTPBearer: token,
+              );
+
+              if (result.succeeded) {
+                ToastManager.showSuccess('OCR processing started for ${item.name}');
+                await _loadImagesContent();
+              } else {
+                throw Exception('Failed to start OCR processing');
+              }
+            } catch (e) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Error: ${e.toString()}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          },
+        ),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (context) => TranscriptionProcessingModal(
+          onProcessing: (customPrompt, model, languageHint) async {
+            try {
+              final token = currentAuthenticationToken ?? '';
+              final result = await OCRWorkbenchAPIGroup.transcribeAudiosCall.call(
+                audioIdsList: [item.id],
+                model: model,
+                customPrompt: customPrompt,
+                languageHint: languageHint,
+                hTTPBearer: token,
+              );
+
+              if (result.succeeded) {
+                ToastManager.showSuccess('Transcription started for ${item.name}');
+                await _loadAudiosContent();
+              } else {
+                throw Exception('Failed to start transcription');
+              }
+            } catch (e) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Error: ${e.toString()}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          },
         ),
       );
     }
@@ -861,9 +879,6 @@ class _ContentAreaState extends State<ContentArea> with TickerProviderStateMixin
       // Convert global position to local coordinates relative to this widget
       final Offset localPosition = renderBox.globalToLocal(globalPosition);
       final Size widgetSize = renderBox.size;
-      
-      // Get screen height for better trigger zone calculation
-      final double screenHeight = MediaQuery.of(context).size.height;
       
       // More generous trigger zones
       const double topTriggerZone = 120.0; // Larger top trigger zone

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
@@ -6,6 +7,7 @@ import '/backend/api_requests/api_calls.dart';
 import '/auth/custom_auth/auth_util.dart';
 import '/toasts/toast_manager.dart';
 import '/models/content_item.dart';
+import '/components/modals/ocr_processing_modal.dart';
 
 class ImageModalView extends StatefulWidget {
   final ContentItem item;
@@ -30,6 +32,7 @@ class _ImageModalViewState extends State<ImageModalView> {
   late TextEditingController _textController;
   bool _isSaving = false;
   bool _isProcessing = false;
+  bool _isCopied = false;
 
   @override
   void initState() {
@@ -57,52 +60,49 @@ class _ImageModalViewState extends State<ImageModalView> {
       );
 
       if (result.succeeded) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Text saved successfully')),
-        );
+        ToastManager.showSuccess('Text saved successfully');
         widget.onUpdate();
         Navigator.pop(context);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save text')),
-        );
+        ToastManager.showError('Failed to save text');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      ToastManager.showError('Error: $e');
     } finally {
       setState(() => _isSaving = false);
     }
   }
 
   Future<void> _processOCR() async {
-    setState(() => _isProcessing = true);
-    try {
-      final token = currentAuthenticationToken ?? '';
-      final result = await OCRWorkbenchAPIGroup.processImagesOcrCall.call(
-        imageIdsList: [widget.item.id],
-        hTTPBearer: token,
-      );
+    showDialog(
+      context: context,
+      builder: (context) => OcrProcessingModal(
+        onProcessing: (customPrompt, model) async {
+          setState(() => _isProcessing = true);
+          try {
+            final token = currentAuthenticationToken ?? '';
+            final result = await OCRWorkbenchAPIGroup.processImagesOcrCall.call(
+              imageIdsList: [widget.item.id],
+              model: model,
+              customPrompt: customPrompt,
+              hTTPBearer: token,
+            );
 
-      if (result.succeeded) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('OCR processing started')),
-        );
-        widget.onUpdate();
-        Navigator.pop(context);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to start OCR processing')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    } finally {
-      setState(() => _isProcessing = false);
-    }
+            if (result.succeeded) {
+              ToastManager.showSuccess('OCR processing started');
+              widget.onUpdate();
+              Navigator.pop(context);
+            } else {
+              ToastManager.showError('Failed to start OCR processing');
+            }
+          } catch (e) {
+            ToastManager.showError('Error: $e');
+          } finally {
+            setState(() => _isProcessing = false);
+          }
+        },
+      ),
+    );
   }
 
   @override
@@ -153,12 +153,34 @@ class _ImageModalViewState extends State<ImageModalView> {
                       ],
                     ),
                   ),
-                  if (hasText)
+                  if (hasText) ...[
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: IconButton(
+                        key: ValueKey(_isCopied),
+                        icon: Icon(
+                          _isCopied ? Icons.check_circle : Icons.copy,
+                          color: _isCopied ? Colors.green : null,
+                        ),
+                        onPressed: _isCopied
+                            ? null
+                            : () {
+                                Clipboard.setData(ClipboardData(text: displayText));
+                                setState(() => _isCopied = true);
+                                ToastManager.showSuccess('Text copied to clipboard');
+                                Future.delayed(const Duration(seconds: 2), () {
+                                  if (mounted) setState(() => _isCopied = false);
+                                });
+                              },
+                        tooltip: 'Copy text',
+                      ),
+                    ),
                     IconButton(
                       icon: Icon(_isEditMode ? Icons.visibility : Icons.edit),
                       onPressed: () => setState(() => _isEditMode = !_isEditMode),
                       tooltip: _isEditMode ? 'View Mode' : 'Edit Mode',
                     ),
+                  ],
                   IconButton(
                     icon: Icon(Icons.delete_outline),
                     color: Colors.red,

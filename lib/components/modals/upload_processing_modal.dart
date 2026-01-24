@@ -9,6 +9,9 @@ import '/utils/pdf_processor.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:async';
 import 'dart:typed_data';
+import '/toasts/toast_manager.dart';
+import 'package:desktop_drop/desktop_drop.dart';
+import 'package:flutter/foundation.dart';
 
 class UploadProcessingModal extends StatefulWidget {
   const UploadProcessingModal({
@@ -76,6 +79,8 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
   int _failedCount = 0;
   late TabController _tabController;
   late FocusNode _focusNode;
+  bool _isDraggingImage = false;
+  bool _isDraggingAudio = false;
 
   @override
   void initState() {
@@ -83,6 +88,10 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(_onTabChanged);
     _focusNode = FocusNode();
+    
+    // Debug: Check if we're on web and desktop_drop support
+    debugPrint('📱 Platform check: web=${identical(0, 0.0)}');
+    debugPrint('🎯 DropTarget from desktop_drop should be available');
   }
 
   @override
@@ -131,91 +140,161 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
       );
 
       if (result != null) {
-        // Process files and extract images from PDFs if needed
-        final List<FileForPreview> previewFiles = [];
-        
-        for (var file in result.files) {
-          try {
-            if (fileType == 'image' && file.name.toLowerCase().endsWith('.pdf')) {
-              // Extract images from PDF
-              // Prefer bytes for web/cross-platform, fall back to path for mobile
-              final extractedImages = await PDFProcessor.extractImagesFromPDF(
-                file.bytes != null ? null : file.path,
-                pdfBytes: file.bytes,
-              );
-              
-              for (int i = 0; i < extractedImages.length; i++) {
-                previewFiles.add(
-                  FileForPreview(
-                    id: UniqueKey().toString(),
-                    name: '${file.name} - Page ${i + 1}',
-                    imageBytes: extractedImages[i],
-                    originalFileName: file.name,
-                  ),
-                );
-              }
-            } else {
-              // Regular image or audio file
+        await _processPickedFiles(result.files, fileType);
+      }
+    } catch (e) {
+      _showErrorToast('Error picking files: $e');
+    }
+  }
+
+  Future<void> _handleDroppedFiles(DropDoneDetails details, String fileType) async {
+    try {
+      debugPrint('🔥 DEBUG: Dropped files detected - count: ${details.files.length}, type: $fileType');
+      debugPrint('🔥 DEBUG: Files list: ${details.files.map((f) => f.name).toList()}');
+      
+      if (details.files.isEmpty) {
+        _showErrorToast('No files were dropped');
+        return;
+      }
+
+      final List<PlatformFile> platformFiles = [];
+      
+      for (var file in details.files) {
+        try {
+          debugPrint('🔥 DEBUG: Processing file: ${file.name}');
+          
+          final bytes = await file.readAsBytes();
+          final name = file.name;
+          
+          debugPrint('🔥 DEBUG: File bytes read: ${bytes.length} bytes');
+          
+          // Validate file type
+          final extension = name.toLowerCase().split('.').last;
+          if (fileType == 'image') {
+            if (!['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf'].contains(extension)) {
+              _showErrorToast('Invalid file type: $name. Only images and PDFs allowed.');
+              continue;
+            }
+          } else if (fileType == 'audio') {
+            if (!['mp3', 'wav', 'm4a', 'ogg', 'flac', 'aac'].contains(extension)) {
+              _showErrorToast('Invalid file type: $name. Only audio files allowed.');
+              continue;
+            }
+          }
+          
+          platformFiles.add(PlatformFile(
+            name: name,
+            size: bytes.length,
+            bytes: bytes,
+          ));
+          
+          debugPrint('🔥 DEBUG: File added to processing list: $name');
+        } catch (e) {
+          debugPrint('🔥 ERROR processing individual file: $e');
+          _showErrorToast('Error processing ${file.name}: $e');
+        }
+      }
+      
+      debugPrint('🔥 DEBUG: Total files to process: ${platformFiles.length}');
+      
+      if (platformFiles.isNotEmpty) {
+        _showSuccessToast('${platformFiles.length} file(s) dropped successfully');
+        await _processPickedFiles(platformFiles, fileType);
+      } else {
+        _showErrorToast('No valid files to process');
+      }
+    } catch (e) {
+      debugPrint('🔥 ERROR in _handleDroppedFiles: $e');
+      _showErrorToast('Error processing dropped files: $e');
+    }
+  }
+
+  Future<void> _processPickedFiles(List<PlatformFile> files, String fileType) async {
+    try {
+      // Process files and extract images from PDFs if needed
+      final List<FileForPreview> previewFiles = [];
+      
+      for (var file in files) {
+        try {
+          if (fileType == 'image' && file.name.toLowerCase().endsWith('.pdf')) {
+            // Extract images from PDF
+            // Prefer bytes for web/cross-platform, fall back to path for mobile
+            final extractedImages = await PDFProcessor.extractImagesFromPDF(
+              file.bytes != null ? null : file.path,
+              pdfBytes: file.bytes,
+            );
+            
+            for (int i = 0; i < extractedImages.length; i++) {
               previewFiles.add(
                 FileForPreview(
                   id: UniqueKey().toString(),
-                  name: file.name,
-                  imageBytes: file.bytes ?? Uint8List(0),
+                  name: '${file.name} - Page ${i + 1}',
+                  imageBytes: extractedImages[i],
                   originalFileName: file.name,
                 ),
               );
             }
-          } catch (e) {
-            _showErrorToast('Error processing ${file.name}: $e');
+          } else {
+            // Regular image or audio file
+            previewFiles.add(
+              FileForPreview(
+                id: UniqueKey().toString(),
+                name: file.name,
+                imageBytes: file.bytes ?? Uint8List(0),
+                originalFileName: file.name,
+              ),
+            );
           }
-        }
-
-        if (previewFiles.isNotEmpty && fileType == 'image') {
-          // Show preview and crop modal for images
-          if (!mounted) return;
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => ImagePreviewCropModal(
-              initialFiles: previewFiles,
-              onClose: () => Navigator.pop(context),
-              onConfirm: (selectedFiles) {
-                // Convert selected files back to FileItem format
-                setState(() {
-                  for (var file in selectedFiles) {
-                    _selectedFiles.add(
-                      FileItem(
-                        id: file.id,
-                        name: file.name,
-                        fileType: 'image',
-                        sizeBytes: file.imageBytes.length,
-                        bytes: file.imageBytes,
-                      ),
-                    );
-                  }
-                });
-              },
-            ),
-          );
-        } else if (previewFiles.isNotEmpty) {
-          // For audio, directly add to selected files
-          setState(() {
-            for (var file in previewFiles) {
-              _selectedFiles.add(
-                FileItem(
-                  id: file.id,
-                  name: file.name,
-                  fileType: fileType,
-                  sizeBytes: file.imageBytes.length,
-                  bytes: file.imageBytes,
-                ),
-              );
-            }
-          });
+        } catch (e) {
+          _showErrorToast('Error processing ${file.name}: $e');
         }
       }
+
+      if (previewFiles.isNotEmpty && fileType == 'image') {
+        // Show preview and crop modal for images
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => ImagePreviewCropModal(
+            initialFiles: previewFiles,
+            onClose: () => Navigator.pop(context),
+            onConfirm: (selectedFiles) {
+              // Convert selected files back to FileItem format
+              setState(() {
+                for (var file in selectedFiles) {
+                  _selectedFiles.add(
+                    FileItem(
+                      id: file.id,
+                      name: file.name,
+                      fileType: 'image',
+                      sizeBytes: file.imageBytes.length,
+                      bytes: file.imageBytes,
+                    ),
+                  );
+                }
+              });
+            },
+          ),
+        );
+      } else if (previewFiles.isNotEmpty) {
+        // For audio, directly add to selected files
+        setState(() {
+          for (var file in previewFiles) {
+            _selectedFiles.add(
+              FileItem(
+                id: file.id,
+                name: file.name,
+                fileType: fileType,
+                sizeBytes: file.imageBytes.length,
+                bytes: file.imageBytes,
+              ),
+            );
+          }
+        });
+      }
     } catch (e) {
-      _showErrorToast('Error picking files: $e');
+      _showErrorToast('Error processing files: $e');
     }
   }
 
@@ -721,13 +800,13 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
   }
 
   void _showErrorToast(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    debugPrint('🔴 TOAST ERROR: $message');
+    ToastManager.showError(message);
+  }
+
+  void _showSuccessToast(String message) {
+    debugPrint('✅ TOAST SUCCESS: $message');
+    ToastManager.showSuccess(message);
   }
 
   @override
@@ -899,41 +978,140 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _pickFiles('image'),
-                    icon: const Icon(Icons.photo_library_rounded, size: 20),
-                    label: const Text('Select Images', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: theme.primary,
-                      foregroundColor: Colors.white,
-                      shadowColor: Colors.transparent,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
+                  child: DropTarget(
+                    onDragEntered: (details) {
+                      debugPrint('🎯 Image drag ENTERED');
+                      setState(() => _isDraggingImage = true);
+                    },
+                    onDragExited: (details) {
+                      debugPrint('🎯 Image drag EXITED');
+                      setState(() => _isDraggingImage = false);
+                    },
+                    onDragDone: (details) {
+                      debugPrint('🎯 Image files DROPPED: ${details.files.length}');
+                      setState(() => _isDraggingImage = false);
+                      _handleDroppedFiles(details, 'image');
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _isDraggingImage 
+                              ? theme.primary 
+                              : theme.primary.withValues(alpha: 0.3),
+                          width: _isDraggingImage ? 3 : 1,
+                        ),
+                        color: _isDraggingImage 
+                            ? theme.primary.withValues(alpha: 0.1)
+                            : Colors.transparent,
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => _pickFiles('image'),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  _isDraggingImage ? Icons.cloud_download : Icons.photo_library_rounded,
+                                  size: _isDraggingImage ? 24 : 20,
+                                  color: theme.primary,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _isDraggingImage ? 'Drop Images Here!' : 'Select Images',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                    color: theme.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _pickFiles('audio'),
-                    icon: const Icon(Icons.audiotrack_rounded, size: 20),
-                    label: const Text('Select Audio', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: theme.secondary,
-                      foregroundColor: Colors.white,
-                      shadowColor: Colors.transparent,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
+                  child: DropTarget(
+                    onDragEntered: (details) {
+                      debugPrint('🎵 Audio drag ENTERED');
+                      setState(() => _isDraggingAudio = true);
+                    },
+                    onDragExited: (details) {
+                      debugPrint('🎵 Audio drag EXITED');
+                      setState(() => _isDraggingAudio = false);
+                    },
+                    onDragDone: (details) {
+                      debugPrint('🎵 Audio files DROPPED: ${details.files.length}');
+                      setState(() => _isDraggingAudio = false);
+                      _handleDroppedFiles(details, 'audio');
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _isDraggingAudio 
+                              ? theme.secondary 
+                              : theme.secondary.withValues(alpha: 0.3),
+                          width: _isDraggingAudio ? 3 : 1,
+                        ),
+                        color: _isDraggingAudio 
+                            ? theme.secondary.withValues(alpha: 0.1)
+                            : Colors.transparent,
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => _pickFiles('audio'),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  _isDraggingAudio ? Icons.cloud_download : Icons.audiotrack_rounded,
+                                  size: _isDraggingAudio ? 24 : 20,
+                                  color: theme.secondary,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _isDraggingAudio ? 'Drop Audio Here!' : 'Select Audio',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                    color: theme.secondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            Center(
+              child: Text(
+                kIsWeb 
+                    ? 'Drag files from your computer or click to select'
+                    : 'Or drag and drop files onto the buttons above',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: theme.secondaryText.withValues(alpha: 0.7),
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
             ),
             const SizedBox(height: 28),
             if (_selectedFiles.isNotEmpty) ...[

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/backend/api_requests/api_calls.dart';
 import '/components/utils/formatted_text_widget.dart';
+import '/toasts/toast_manager.dart';
 
 class ImageDetailModal extends StatefulWidget {
   const ImageDetailModal({
@@ -93,12 +94,7 @@ class _ImageDetailModalState extends State<ImageDetailModal> {
   Future<void> _copyToClipboard() async {
     if (_ocrText != null) {
       await Clipboard.setData(ClipboardData(text: _ocrText!));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Text copied to clipboard'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      ToastManager.showSuccess('Text copied to clipboard');
     }
   }
 
@@ -424,11 +420,7 @@ class _ImageDetailModalState extends State<ImageDetailModal> {
                           child: ElevatedButton.icon(
                             onPressed: () {
                               // TODO: Implement export/download
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Export feature coming soon'),
-                                ),
-                              );
+                              ToastManager.showInfo('Export feature coming soon');
                             },
                             icon: const Icon(Icons.download),
                             label: const Text('Export'),
