@@ -1,7 +1,8 @@
 enum LanguageCode {
   hindi('hi', 'Hindi'),
   english('en', 'English'),
-  sanskrit('sa', 'Sanskrit');
+  sanskrit('sa', 'Sanskrit'),
+  gujarti('gu', 'Gujarati');
 
   final String code;
   final String displayName;
