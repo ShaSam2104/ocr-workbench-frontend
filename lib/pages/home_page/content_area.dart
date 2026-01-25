@@ -11,6 +11,7 @@ import '/models/content_item.dart';
 import '/enums/scroll_direction.dart';
 import '/widgets/image_modal_view.dart';
 import '/widgets/audio_modal_view.dart';
+import '/widgets/audio_player_widget.dart';
 import '/painters/waveform_painter.dart';
 import '/components/modals/ocr_processing_modal.dart';
 import '/components/modals/transcription_processing_modal.dart';
@@ -236,13 +237,13 @@ class _ContentAreaState extends State<ContentArea> with TickerProviderStateMixin
                 name: 'Audio ${audioMap['sequence_number']}',
                 sequence: audioMap['sequence_number'] as int? ?? 0,
                 type: ContentType.audio,
+                url: audioMap['audio_url'] as String?,
                 durationSeconds: audioMap['duration_seconds'] as int?,
                 transcriptionStatus: audioMap['transcription_status'] as String? ?? 'pending',
                 transcript: transcriptMap?['edited_text_with_formatting'] as String?,
                 rawTranscript: transcriptMap?['raw_text_with_formatting'] as String?,
               );
               newItems.add(newItem);
-              print('Added audio item: ${newItem.name} (ID: ${newItem.id})');
             } catch (e) {
               print('Error parsing audio item: $e');
             }

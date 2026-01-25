@@ -473,7 +473,7 @@ class UpdateAudioTranscriptCall {
 }''';
     return ApiManager.instance.makeApiCall(
       callName: 'Update audio transcript',
-      apiUrl: '${baseUrl}/audio/{audio_id}/transcript',
+      apiUrl: '${baseUrl}/audio/${audioId}/transcript',
       callType: ApiCallType.PUT,
       headers: {
         'Authorization': 'Bearer ${hTTPBearer}',

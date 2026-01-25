@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
+import '/backend/api_requests/api_calls.dart';
+import '/auth/custom_auth/auth_util.dart';
+import '/widgets/image_modal_view.dart';
+import '/widgets/audio_modal_view.dart';
+import '/models/content_item.dart';
 
 class SearchResult {
   final int id;
@@ -9,6 +14,8 @@ class SearchResult {
   final String? thumbnailUrl;
   final String? previewText;
   final String? status; // 'completed', 'processing', 'pending', 'failed'
+  final dynamic imageData; // Raw image object from API
+  final dynamic audioData; // Raw audio object from API
 
   SearchResult({
     required this.id,
@@ -17,6 +24,8 @@ class SearchResult {
     this.thumbnailUrl,
     this.previewText,
     this.status,
+    this.imageData,
+    this.audioData,
   });
 }
 
@@ -43,13 +52,8 @@ class _SearchModalEnhancedState extends State<SearchModalEnhanced> {
   late FocusNode _searchFocusNode;
   late FocusNode _resultsFocusNode;
 
-  // Search mode: 'number' or 'text'
-  String _searchMode = 'text';
-
   // Filters
   String _contentType = 'both'; // 'images', 'audios', 'both'
-  String _status =
-      'all'; // 'all', 'completed', 'processing', 'pending', 'failed'
   String _scope = 'global'; // 'chapter', 'book', 'global'
 
   // Results
@@ -243,50 +247,15 @@ class _SearchModalEnhancedState extends State<SearchModalEnhanced> {
                               ),
                             ),
                             ),
-                            const SizedBox(width: 12),
-                            // Filter toggle button
-                            Tooltip(
-                              message: 'Toggle search mode',
-                              child: InkWell(
-                                onTap: () {
-                                  setState(() {
-                                    _searchMode = _searchMode == 'number'
-                                        ? 'text'
-                                        : 'number';
-                                    _searchController.clear();
-                                    _results.clear();
-                                    _selectedResultIndex = -1;
-                                  });
-                                },
-                                borderRadius: BorderRadius.circular(6),
-                                child: Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: theme.primaryBackground,
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: theme.alternate,
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Icon(
-                                    _searchMode == 'number'
-                                        ? Icons.tag
-                                        : Icons.text_fields,
-                                    size: 20,
-                                    color: theme.primary,
-                                  ),
-                                ),
-                              ),
-                            ),
                           ],
                         ),
                       ),
                       // Filters - Clean chip-based design
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                        padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             // Content type filter
                             Text(
@@ -296,73 +265,20 @@ class _SearchModalEnhancedState extends State<SearchModalEnhanced> {
                                 fontSize: 12,
                               ),
                             ),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 8,
-                              children: [
-                                _buildFilterChip('images', 'Images',
-                                    Icons.image_outlined, theme),
-                                _buildFilterChip('audios', 'Audios',
-                                    Icons.audiotrack_outlined, theme),
-                                _buildFilterChip(
-                                    'both', 'Both', Icons.select_all, theme),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            // Status filter
-                            Text(
-                              'Status',
-                              style: theme.labelMedium.override(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: theme.primaryBackground,
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: theme.alternate,
-                                  width: 1,
-                                ),
-                              ),
-                              child: DropdownButton<String>(
-                                value: _status,
-                                underline: const SizedBox.shrink(),
-                                isExpanded: true,
-                                style: theme.bodyMedium.override(fontSize: 13),
-                                icon: Icon(Icons.keyboard_arrow_down,
-                                    size: 20, color: theme.secondaryText),
-                                onChanged: (value) {
-                                  setState(() {
-                                    _status = value ?? 'all';
-                                    _performSearch();
-                                  });
-                                },
-                                items: [
-                                  DropdownMenuItem(
-                                    value: 'all',
-                                    child: Text('All Status'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'completed',
-                                    child: Text('Completed'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'processing',
-                                    child: Text('Processing'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'pending',
-                                    child: Text('Pending'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'failed',
-                                    child: Text('Failed'),
-                                  ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: Wrap(
+                                alignment: WrapAlignment.start,
+                                spacing: 8,
+                                runSpacing: 0,
+                                children: [
+                                  _buildFilterChip('images', 'Images',
+                                      Icons.image_outlined, theme),
+                                  _buildFilterChip('audios', 'Audios',
+                                      Icons.audiotrack_outlined, theme),
+                                  _buildFilterChip(
+                                      'both', 'Both', Icons.select_all, theme),
                                 ],
                               ),
                             ),
@@ -375,18 +291,23 @@ class _SearchModalEnhancedState extends State<SearchModalEnhanced> {
                                 fontSize: 12,
                               ),
                             ),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 8,
-                              children: [
-                                if (widget.currentChapterId != null)
-                                  _buildScopeChip(
-                                      'chapter', 'Current Chapter', theme),
-                                if (widget.currentBookId != null)
-                                  _buildScopeChip(
-                                      'book', 'Current Book', theme),
-                                _buildScopeChip('global', 'Global', theme),
-                              ],
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: Wrap(
+                                alignment: WrapAlignment.start,
+                                spacing: 8,
+                                runSpacing: 0,
+                                children: [
+                                  if (widget.currentChapterId != null)
+                                    _buildScopeChip(
+                                        'chapter', 'Current Chapter', theme),
+                                  if (widget.currentBookId != null)
+                                    _buildScopeChip(
+                                        'book', 'Current Book', theme),
+                                  _buildScopeChip('global', 'Global', theme),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -447,13 +368,20 @@ class _SearchModalEnhancedState extends State<SearchModalEnhanced> {
                                           final isSelected =
                                               _selectedResultIndex == index;
 
-                                          return InkWell(
-                                            onTap: () => _selectResult(index),
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                vertical: 12,
-                                              ),
+                                          return Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 8,
+                                              horizontal: 8,
+                                            ),
+                                            child: InkWell(
+                                              onTap: () => _openResultModal(result),
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  vertical: 12,
+                                                  horizontal: 12,
+                                                ),
                                               decoration: BoxDecoration(
                                                 color: isSelected
                                                     ? theme.primary
@@ -658,7 +586,8 @@ class _SearchModalEnhancedState extends State<SearchModalEnhanced> {
                                                 ],
                                               ),
                                             ),
-                                          );
+                                          ),
+                                            );
                                         },
                                       ),
                       ),
@@ -674,9 +603,7 @@ class _SearchModalEnhancedState extends State<SearchModalEnhanced> {
                           ),
                         ),
                         child: Text(
-                          _selectedResultIndex >= 0
-                              ? '↓ to navigate  Enter to open  Esc to close'
-                              : '↓ to select results  Esc to close',
+                          'Click to open  Esc to close',
                           style: theme.bodySmall.copyWith(
                             color: theme.secondaryText,
                           ),
@@ -822,18 +749,96 @@ class _SearchModalEnhancedState extends State<SearchModalEnhanced> {
   }
 
   Future<List<SearchResult>> _searchWithFilters() async {
-    // This is a placeholder - implement actual API calls based on search mode and filters
-    // For now, return empty results to demonstrate structure
-    await Future.delayed(const Duration(milliseconds: 300));
+    return await _searchByText();
+  }
 
-    // In real implementation:
-    // if (_searchMode == 'number') {
-    //   return await _searchByNumber();
-    // } else {
-    //   return await _searchByText();
-    // }
+  Future<List<SearchResult>> _searchByText() async {
+    final List<SearchResult> results = [];
+    final String query = _searchController.text;
+    final String token = currentAuthenticationToken ?? '';
 
-    return [];
+    try {
+      // Search images by text if content type includes images
+      if (_contentType == 'images' || _contentType == 'both') {
+        final imageResponse =
+            await OCRWorkbenchAPIGroup.searchImagesByTextCall.call(
+          textQuery: query,
+          hTTPBearer: token,
+        );
+
+        if (imageResponse.succeeded) {
+          final List<dynamic> imageResults =
+              imageResponse.jsonBody is List ? imageResponse.jsonBody : [];
+
+          for (final item in imageResults) {
+            if (item is Map<String, dynamic>) {
+              final imageData = item['image'] as Map<String, dynamic>?;
+              final excerpt = item['excerpt'] as String?;
+              final imageUrl = item['image_url'] as String?;
+
+              if (imageData != null) {
+                final status = imageData['ocr_status'] as String? ?? 'pending';
+
+                results.add(
+                  SearchResult(
+                    id: imageData['id'] as int? ?? 0,
+                    type: 'image',
+                    name: imageData['filename'] as String? ?? 'Unknown Image',
+                    thumbnailUrl: imageUrl,
+                    previewText: excerpt,
+                    status: status,
+                    imageData: imageData,
+                  ),
+                );
+              }
+            }
+          }
+        }
+      }
+
+      // Search audios by text if content type includes audios
+      if (_contentType == 'audios' || _contentType == 'both') {
+        final audioResponse =
+            await OCRWorkbenchAPIGroup.searchAudiosByTextCall.call(
+          textQuery: query,
+          hTTPBearer: token,
+        );
+
+        if (audioResponse.succeeded) {
+          final List<dynamic> audioResults =
+              audioResponse.jsonBody is List ? audioResponse.jsonBody : [];
+
+          for (final item in audioResults) {
+            if (item is Map<String, dynamic>) {
+              final audioData = item['audio'] as Map<String, dynamic>?;
+              final excerpt = item['excerpt'] as String?;
+              final audioUrl = item['audio_url'] as String?;
+
+              if (audioData != null) {
+                final status =
+                    audioData['transcription_status'] as String? ?? 'pending';
+
+                results.add(
+                  SearchResult(
+                    id: audioData['id'] as int? ?? 0,
+                    type: 'audio',
+                    name: audioData['filename'] as String? ?? 'Unknown Audio',
+                    thumbnailUrl: audioUrl, // Store audio URL for later use
+                    previewText: excerpt,
+                    status: status,
+                    audioData: audioData,
+                  ),
+                );
+              }
+            }
+          }
+        }
+      }
+
+      return results;
+    } catch (e) {
+      rethrow;
+    }
   }
 
   KeyEventResult _handleKeyEvent(KeyEvent event) {
@@ -876,10 +881,104 @@ class _SearchModalEnhancedState extends State<SearchModalEnhanced> {
     return KeyEventResult.ignored;
   }
 
-  void _selectResult(int index) {
-    setState(() {
-      _selectedResultIndex = index;
-    });
+  Future<void> _openResultModal(SearchResult result) async {
+    try {
+      final token = currentAuthenticationToken ?? '';
+      
+      if (result.type == 'image') {
+        // Fetch full image data
+        final imageTextResponse = 
+            await OCRWorkbenchAPIGroup.getImageTextCall.call(
+          imageId: result.id,
+          hTTPBearer: token,
+        );
+        
+        if (!mounted) return;
+        
+        if (imageTextResponse.succeeded) {
+          final textData = imageTextResponse.jsonBody as Map<String, dynamic>?;
+          
+          // Prefer edited text if available, otherwise use raw text
+          final ocrText = (textData?['edited_text_with_formatting'] as String?) ??
+              (textData?['raw_text_with_formatting'] as String?);
+          final imageUrl = textData?['image_url'] as String?;
+          
+          // Create ContentItem from search result and fetched data
+          final contentItem = ContentItem(
+            id: result.id,
+            name: result.name,
+            sequence: 0, // Will be updated from context
+            type: ContentType.image,
+            url: imageUrl, // Use the image URL from API
+            thumbnailUrl: imageUrl, // Use the same URL for thumbnail
+            ocrStatus: result.status,
+            ocrText: ocrText,
+            rawOcrText: textData?['plain_text'] as String?,
+          );
+          
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (context) => ImageModalView(
+                item: contentItem,
+                bookId: widget.currentBookId ?? 0,
+                chapterId: widget.currentChapterId ?? 0,
+                onUpdate: () {
+                  // Handle update
+                },
+              ),
+            );
+          }
+        }
+      } else if (result.type == 'audio') {
+        // Fetch full audio data
+        final audioTranscriptResponse =
+            await OCRWorkbenchAPIGroup.getAudioTranscriptCall.call(
+          audioId: result.id,
+          hTTPBearer: token,
+        );
+        
+        if (!mounted) return;
+        
+        if (audioTranscriptResponse.succeeded) {
+          final transcriptData = audioTranscriptResponse.jsonBody as Map<String, dynamic>?;
+          
+          // Prefer edited text if available, otherwise use raw text
+          final transcript = (transcriptData?['edited_text_with_formatting'] as String?) ??
+              (transcriptData?['raw_text_with_formatting'] as String?);
+          final audioUrl = transcriptData?['audio_url'] as String?;
+          
+          // Create ContentItem from search result and fetched data
+          final contentItem = ContentItem(
+            id: result.id,
+            name: result.name,
+            sequence: 0, // Will be updated from context
+            type: ContentType.audio,
+            url: audioUrl, // Use the audio URL from API
+            thumbnailUrl: result.thumbnailUrl,
+            transcriptionStatus: result.status,
+            transcript: transcript,
+            rawTranscript: transcriptData?['plain_text'] as String?,
+          );
+          
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (context) => AudioModalView(
+                item: contentItem,
+                bookId: widget.currentBookId ?? 0,
+                chapterId: widget.currentChapterId ?? 0,
+                onUpdate: () {
+                  // Handle update
+                },
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error opening result modal: $e');
+    }
   }
 
   void _openResult(SearchResult result) {
