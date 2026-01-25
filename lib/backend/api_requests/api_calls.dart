@@ -13,11 +13,18 @@ const _kPrivateApiFunctionName = 'ffPrivateApiCall';
 
 class OCRWorkbenchAPIGroup {
   static String getBaseUrl() {
-    // In production (web builds), use relative path for nginx proxy
+    // In production (web builds), dynamically detect hostname
     // In development, use localhost backend directly
     if (kIsWeb) {
-      // Production: Use /api prefix (proxied by nginx to backend:8000/)
-      return '/api';
+      // For web builds, use the current origin to construct API URL
+      // This works for localhost, 127.0.0.1, and network IP addresses
+      try {
+        final origin = Uri.base.origin;
+        return '$origin/api';
+      } catch (e) {
+        // Fallback if window.location is not available
+        return '/api';
+      }
     }
     // Development: Use hardcoded backend URL
     return 'http://localhost:8001';
