@@ -12,7 +12,16 @@ const _kPrivateApiFunctionName = 'ffPrivateApiCall';
 /// Start OCR Workbench API Group Code
 
 class OCRWorkbenchAPIGroup {
-  static String getBaseUrl() => 'http://localhost:8001';
+  static String getBaseUrl() {
+    // In production (web builds), use relative path for nginx proxy
+    // In development, use localhost backend directly
+    if (kIsWeb) {
+      // Production: Use /api prefix (proxied by nginx to backend:8000/)
+      return '/api';
+    }
+    // Development: Use hardcoded backend URL
+    return 'http://localhost:8001';
+  }
   static Map<String, String> headers = {};
   static LoginCall loginCall = LoginCall();
   static LogoutCall logoutCall = LogoutCall();

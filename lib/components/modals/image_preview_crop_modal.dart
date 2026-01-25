@@ -67,13 +67,18 @@ class _ImagePreviewCropModalState extends State<ImagePreviewCropModal> {
     });
   }
 
-  void _onCropped(Uint8List croppedData) {
+  void _onCropped(CropResult result) {
     if (_currentCropIndex != null) {
-      setState(() {
-        _files[_currentCropIndex!].imageBytes = croppedData;
-        _files[_currentCropIndex!].hasCropped = true;
-        _currentCropIndex = null;
-      });
+      if (result is CropSuccess) {
+        setState(() {
+          _files[_currentCropIndex!].imageBytes = result.croppedImage;
+          _files[_currentCropIndex!].hasCropped = true;
+          _currentCropIndex = null;
+        });
+      } else if (result is CropFailure) {
+        // Handle crop failure
+        _cancelCrop();
+      }
     }
   }
 
@@ -142,7 +147,6 @@ class _ImagePreviewCropModalState extends State<ImagePreviewCropModal> {
                     image: _files[_currentCropIndex!].imageBytes,
                     onCropped: _onCropped,
                     withCircleUi: false,
-                    initialSize: 0.8,
                     maskColor: Colors.black.withValues(alpha: 0.7),
                     cornerDotBuilder: (size, edgeAlignment) => DotControl(
                       color: theme.primary,

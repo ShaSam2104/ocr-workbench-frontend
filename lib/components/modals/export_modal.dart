@@ -1,95 +1,103 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
 import '/flutter_flow/flutter_flow_theme.dart';
+import '/backend/api_requests/api_calls.dart';
+import '/auth/custom_auth/auth_util.dart';
+import '/toasts/toast_manager.dart';
+
+// Conditional import for web functionality
+import 'export_modal_web.dart' if (dart.library.html) 'export_modal_web.dart';
 
 class ExportConfig {
-  final String level; // 'chapter', 'book', 'selection'
-  final String format; // 'pdf', 'docx', 'txt', 'csv'
+  final String format; // 'docx', 'txt'
   final bool includeImages;
   final bool includeTranscripts;
   final bool includePageBreaks;
-  final String language; // 'auto' or language code
+  final int? chapterId; // null for "All Chapters"
 
   ExportConfig({
-    required this.level,
     required this.format,
     required this.includeImages,
     required this.includeTranscripts,
     required this.includePageBreaks,
-    required this.language,
+    this.chapterId,
   });
 }
 
 class ExportModal extends StatefulWidget {
   const ExportModal({
     super.key,
-    this.currentChapterId,
-    this.currentChaptName,
-    this.currentBookId,
-    this.currentBookName,
-    this.selectedItemsCount = 0,
-    required this.onExport,
+    required this.bookId,
+    required this.bookName,
+    required this.chapters,
+    required this.onExportComplete,
+    required this.onClose,
   });
 
-  final int? currentChapterId;
-  final String? currentChaptName;
-  final int? currentBookId;
-  final String? currentBookName;
-  final int selectedItemsCount;
-  final Function(ExportConfig config) onExport;
+  final int bookId;
+  final String bookName;
+  final List<ChapterItem> chapters;
+  final VoidCallback onExportComplete;
+  final VoidCallback onClose;
 
   @override
   State<ExportModal> createState() => _ExportModalState();
 }
 
+class ChapterItem {
+  final int id;
+  final String name;
+
+  ChapterItem({required this.id, required this.name});
+}
+
 class _ExportModalState extends State<ExportModal> {
-  late String _selectedLevel;
-  String _selectedFormat = 'pdf';
+  String _selectedFormat = 'docx';
   bool _includeImages = true;
   bool _includeTranscripts = true;
   bool _includePageBreaks = true;
-  String _selectedLanguage = 'auto';
+  int? _selectedChapterId; // null for "All Chapters"
   bool _isExporting = false;
   String? _exportProgress;
-
-  final List<String> _languages = [
-    'auto',
-    'en',
-    'es',
-    'fr',
-    'de',
-    'it',
-    'pt',
-    'ru',
-    'zh',
-    'ja',
-    'ko',
-    'ar',
-  ];
 
   @override
   void initState() {
     super.initState();
-    // Set default export level based on what's available
-    if (widget.selectedItemsCount > 0) {
-      _selectedLevel = 'selection';
-    } else if (widget.currentChapterId != null) {
-      _selectedLevel = 'chapter';
-    } else if (widget.currentBookId != null) {
-      _selectedLevel = 'book';
-    } else {
-      _selectedLevel = 'book';
+    _selectedChapterId = null; // Default to "All Chapters"
+    // Register keyboard handler for ESC
+    HardwareKeyboard.instance.addHandler(_handleKeyEvent);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
+    super.dispose();
+  }
+
+  bool _handleKeyEvent(KeyEvent event) {
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape &&
+        !_isExporting) {
+      widget.onClose();
+      return true;
     }
+    return false;
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = FlutterFlowTheme.of(context);
     final isMobile = MediaQuery.of(context).size.width < 576;
-    final isTablet =
-        MediaQuery.of(context).size.width >= 576 && MediaQuery.of(context).size.width < 992;
+    final isTablet = MediaQuery.of(context).size.width >= 576 && MediaQuery.of(context).size.width < 992;
 
     return Dialog(
+      backgroundColor: theme.primaryBackground,
       insetPadding: EdgeInsets.all(isMobile ? 16 : 32),
       child: Container(
         width: isMobile ? double.infinity : (isTablet ? 600 : 700),
@@ -100,71 +108,135 @@ class _ExportModalState extends State<ExportModal> {
           color: theme.primaryBackground,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: theme.alternate,
-                      width: 1,
-                    ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: theme.alternate,
+                    width: 1,
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Export',
-                      style: theme.headlineSmall,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
               ),
-              // Content
-              Padding(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Export',
+                    style: theme.headlineSmall,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: widget.onClose,
+                  ),
+                ],
+              ),
+            ),
+            // Content
+            Expanded(
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Export Level Selection
+                    // Book Display (Read-only)
                     Text(
-                      'Export Level',
+                      'Book',
                       style: theme.bodySmall.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Column(
-                      children: [
-                        if (widget.selectedItemsCount > 0)
-                          _buildLevelOption(
-                            'selection',
-                            'Selected Items (${widget.selectedItemsCount})',
-                            theme,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: theme.primaryBackground,
+                        border: Border.all(
+                          color: theme.alternate,
+                          width: 1,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.book,
+                            size: 20,
+                            color: theme.primary,
                           ),
-                        if (widget.selectedItemsCount > 0) const SizedBox(height: 8),
-                        if (widget.currentChapterId != null)
-                          _buildLevelOption(
-                            'chapter',
-                            'Current Chapter (${widget.currentChaptName ?? 'Untitled'})',
-                            theme,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              widget.bookName,
+                              style: theme.bodyMedium.copyWith(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                           ),
-                        if (widget.currentChapterId != null) const SizedBox(height: 8),
-                        if (widget.currentBookId != null)
-                          _buildLevelOption(
-                            'book',
-                            'Current Book (${widget.currentBookName ?? 'Untitled'})',
-                            theme,
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Chapter Selection Dropdown
+                    Text(
+                      'Chapter',
+                      style: theme.bodySmall.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButton<int?>(
+                      value: _selectedChapterId,
+                      isExpanded: true,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedChapterId = value;
+                        });
+                      },
+                      items: [
+                        DropdownMenuItem(
+                          value: null,
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.library_books,
+                                size: 18,
+                                color: theme.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'All Chapters',
+                                style: theme.bodyMedium,
+                              ),
+                            ],
                           ),
+                        ),
+                        ...widget.chapters.map(
+                          (chapter) => DropdownMenuItem(
+                            value: chapter.id,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.description,
+                                  size: 18,
+                                  color: theme.secondary,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    chapter.name,
+                                    style: theme.bodyMedium,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -180,13 +252,9 @@ class _ExportModalState extends State<ExportModal> {
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
-                          _buildFormatButton('pdf', 'PDF', theme),
-                          const SizedBox(width: 8),
                           _buildFormatButton('docx', 'Word', theme),
                           const SizedBox(width: 8),
                           _buildFormatButton('txt', 'Text', theme),
-                          const SizedBox(width: 8),
-                          _buildFormatButton('csv', 'CSV', theme),
                         ],
                       ),
                     ),
@@ -203,8 +271,11 @@ class _ExportModalState extends State<ExportModal> {
                       'Include Images',
                       _includeImages,
                       (value) {
-                        setState(() => _includeImages = value);
-                      },
+                        setState(() {
+                          _includeImages = value;
+                          setState(() {});
+                        });
+                        },
                       theme,
                     ),
                     const SizedBox(height: 8),
@@ -212,53 +283,28 @@ class _ExportModalState extends State<ExportModal> {
                       'Include Transcripts',
                       _includeTranscripts,
                       (value) {
-                        setState(() => _includeTranscripts = value);
-                      },
+                        setState(() {
+                          _includeTranscripts = value;
+                          setState(() {});
+                        });
+                        },
                       theme,
                     ),
                     const SizedBox(height: 8),
-                    if (_selectedFormat == 'pdf' || _selectedFormat == 'docx')
+                    if (_selectedFormat == 'docx')
                       _buildToggleOption(
                         'Include Page Breaks',
                         _includePageBreaks,
                         (value) {
-                          setState(() => _includePageBreaks = value);
-                        },
+                          setState(() {
+                            _includePageBreaks = value;
+                            setState(() {});
+                          });
+                          },
                         theme,
                       ),
                     const SizedBox(height: 16),
-                    // Language Selection
-                    Text(
-                      'Language',
-                      style: theme.bodySmall.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButton<String>(
-                      value: _selectedLanguage,
-                      isExpanded: true,
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedLanguage = value ?? 'auto';
-                        });
-                      },
-                      items: _languages
-                          .map(
-                            (lang) => DropdownMenuItem(
-                              value: lang,
-                              child: Text(
-                                lang == 'auto'
-                                    ? 'Auto-detect'
-                                    : _getLanguageName(lang),
-                                style: theme.bodyMedium,
-                              ),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                    const SizedBox(height: 16),
-                    // Preview
+                    // Preview info
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -269,7 +315,7 @@ class _ExportModalState extends State<ExportModal> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Preview',
+                            'Export Summary',
                             style: theme.bodySmall.copyWith(
                               fontWeight: FontWeight.w600,
                             ),
@@ -312,90 +358,39 @@ class _ExportModalState extends State<ExportModal> {
                   ],
                 ),
               ),
-              // Footer with buttons
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  border: Border(
-                    top: BorderSide(
-                      color: theme.alternate,
-                      width: 1,
-                    ),
+            ),
+            // Footer with Export button
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: theme.alternate,
+                    width: 1,
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    TextButton(
-                      onPressed: _isExporting ? null : () => Navigator.pop(context),
-                      child: const Text('Cancel'),
-                    ),
-                    ElevatedButton(
-                      onPressed: _isExporting ? null : _performExport,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: theme.primary,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: _isExporting
-                          ? SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text('Export'),
-                    ),
-                  ],
-                ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLevelOption(String value, String label, FlutterFlowTheme theme) {
-    final isSelected = _selectedLevel == value;
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _selectedLevel = value;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? theme.primary.withValues(alpha: 0.1) : Colors.transparent,
-          border: Border.all(
-            color: isSelected ? theme.primary : theme.alternate,
-            width: isSelected ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Radio<String>(
-              value: value,
-              groupValue: _selectedLevel,
-              onChanged: (newValue) {
-                if (newValue != null) {
-                  setState(() {
-                    _selectedLevel = newValue;
-                  });
-                }
-              },
-              activeColor: theme.primary,
-            ),
-            Expanded(
-              child: Text(
-                label,
-                style: theme.bodyMedium.copyWith(
-                  color: isSelected ? theme.primary : theme.secondaryText,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    onPressed: _isExporting ? null : _performExport,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: _isExporting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Export'),
+                  ),
+                ],
               ),
             ),
           ],
@@ -412,6 +407,7 @@ class _ExportModalState extends State<ExportModal> {
       onSelected: (selected) {
         setState(() {
           _selectedFormat = value;
+          setState(() {});
         });
       },
       backgroundColor: Colors.transparent,
@@ -451,102 +447,261 @@ class _ExportModalState extends State<ExportModal> {
 
   String _buildPreviewText() {
     final format = _selectedFormat.toUpperCase();
-    final level = _getLevelLabel(_selectedLevel);
+    final chapterText = _selectedChapterId == null
+        ? 'All Chapters'
+        : 'Chapter: ${widget.chapters.firstWhere((c) => c.id == _selectedChapterId, orElse: () => ChapterItem(id: 0, name: 'Unknown')).name}';
     final includes = <String>[];
 
     if (_includeImages) includes.add('images');
     if (_includeTranscripts) includes.add('transcripts');
-    if ((_selectedFormat == 'pdf' || _selectedFormat == 'docx') && _includePageBreaks) {
+    if (_selectedFormat == 'docx' && _includePageBreaks) {
       includes.add('page breaks');
     }
 
     final includesText = includes.isNotEmpty ? 'with ${includes.join(', ')}' : 'without content';
 
-    return 'Exporting $level as $format $includesText${_selectedLanguage != 'auto' ? ' (${_getLanguageName(_selectedLanguage)})' : ''}';
+    return 'Exporting "$chapterText" from "${widget.bookName}" as $format $includesText';
   }
 
   String _generateFileName() {
     final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-    final level = _selectedLevel == 'chapter'
-        ? 'chapter'
-        : _selectedLevel == 'book'
-            ? 'book'
-            : 'export';
+    final chapterName = _selectedChapterId == null
+        ? 'all_chapters'
+        : widget.chapters
+                .firstWhere((c) => c.id == _selectedChapterId, orElse: () => ChapterItem(id: 0, name: 'unknown'))
+                .name
+                .toLowerCase()
+                .replaceAll(' ', '_');
     final extension = _selectedFormat;
 
-    return '$level\_$timestamp.$extension';
-  }
-
-  String _getLevelLabel(String level) {
-    switch (level) {
-      case 'selection':
-        return 'Selected items (${widget.selectedItemsCount})';
-      case 'chapter':
-        return 'Chapter: ${widget.currentChaptName ?? 'Untitled'}';
-      case 'book':
-        return 'Book: ${widget.currentBookName ?? 'Untitled'}';
-      default:
-        return 'Export';
-    }
-  }
-
-  String _getLanguageName(String code) {
-    const languages = {
-      'auto': 'Auto-detect',
-      'en': 'English',
-      'es': 'Spanish',
-      'fr': 'French',
-      'de': 'German',
-      'it': 'Italian',
-      'pt': 'Portuguese',
-      'ru': 'Russian',
-      'zh': 'Chinese',
-      'ja': 'Japanese',
-      'ko': 'Korean',
-      'ar': 'Arabic',
-    };
-    return languages[code] ?? code;
+    return '${widget.bookName.toLowerCase().replaceAll(' ', '_')}_$chapterName\_$timestamp.$extension';
   }
 
   Future<void> _performExport() async {
-    final config = ExportConfig(
-      level: _selectedLevel,
-      format: _selectedFormat,
-      includeImages: _includeImages,
-      includeTranscripts: _includeTranscripts,
-      includePageBreaks: _includePageBreaks,
-      language: _selectedLanguage,
-    );
-
     setState(() {
       _isExporting = true;
       _exportProgress = 'Preparing export...';
     });
 
     try {
-      // Simulate export progress
-      await Future.delayed(const Duration(milliseconds: 500));
-      setState(() => _exportProgress = 'Processing content...');
+      final authToken = currentAuthenticationToken ?? '';
 
-      await Future.delayed(const Duration(milliseconds: 800));
-      setState(() => _exportProgress = 'Formatting document...');
+      if (authToken.isEmpty) {
+        throw Exception('Authentication token not found. Please log in again.');
+      }
 
-      await Future.delayed(const Duration(milliseconds: 600));
-      setState(() => _exportProgress = 'Finalizing export...');
+      setState(() => _exportProgress = 'Calling export API...');
 
-      // Call the callback with export config
-      widget.onExport(config);
+      // Call the export API
+      final result = await OCRWorkbenchAPIGroup.exportFolderCall.call(
+        hTTPBearer: authToken,
+        bookId: widget.bookId,
+        chapterId: _selectedChapterId,
+        format: _selectedFormat,
+        includeImages: _includeImages,
+        includeAudioTranscripts: _includeTranscripts,
+        includePageBreaks: _includePageBreaks,
+      );
 
-      await Future.delayed(const Duration(milliseconds: 300));
+      if (!result.succeeded) {
+        final errorDetail = result.jsonBody?['detail'] ?? result.jsonBody?['error'] ?? 'Unknown error';
+        throw Exception('Export failed (${result.statusCode}): $errorDetail');
+      }
+
+      setState(() => _exportProgress = 'Preparing file save dialog...');
+
+      // Check if backend returned a file directly (FileResponse)
+      if (result.jsonBody == null && result.response != null) {
+        await _saveBinaryFile(result.response!.bodyBytes);
+        return;
+      }
+
+      // Check if jsonBody is null or empty
+      if (result.jsonBody == null) {
+        throw Exception('Empty response from export API');
+      }
+
+      // Parse response to get file URL or data
+      final responseData = result.jsonBody as Map<String, dynamic>;
+
+      // Check if response contains a download URL or base64 data
+      if (responseData.containsKey('download_url')) {
+        final downloadUrl = responseData['download_url'] as String;
+        await _downloadAndSaveFile(downloadUrl, authToken);
+      } else if (responseData.containsKey('file_data')) {
+        final fileData = responseData['file_data'] as String;
+        await _saveFileData(fileData);
+      } else {
+        throw Exception('Invalid response format from export API. Expected download_url or file_data.');
+      }
+
+      setState(() => _exportProgress = 'Export complete!');
 
       if (mounted) {
-        if (Navigator.canPop(context)) Navigator.pop(context);
+        if (kIsWeb) {
+          ToastManager.showSuccess(
+            'Export complete! $getWebDownloadLocationMessage()',
+            duration: const Duration(seconds: 6),
+          );
+        } else {
+          ToastManager.showSuccess('Export successful!');
+        }
+        widget.onExportComplete();
       }
     } catch (e) {
+      String errorMessage = 'Export failed';
+
+      if (e.toString().contains('TimeoutException') ||
+          e.toString().contains('timeout')) {
+        errorMessage = 'Network timeout. Please try again.';
+      } else if (e.toString().contains('SocketException') ||
+                 e.toString().contains('Connection')) {
+        errorMessage = 'Connection error. Please check your network.';
+      } else if (e.toString().contains('HttpException') || e.toString().contains('401')) {
+        errorMessage = 'Authentication error. Please log in again.';
+      } else if (e.toString().contains('permission')) {
+        errorMessage = 'Permission denied. Cannot save file.';
+      } else {
+        errorMessage = e.toString().replaceFirst('Exception: ', '');
+      }
+
+      if (mounted) {
+        ToastManager.showError(errorMessage);
+      }
+
       setState(() {
-        _exportProgress = 'Export failed: $e';
+        _exportProgress = errorMessage;
         _isExporting = false;
       });
+
+      await Future.delayed(const Duration(seconds: 5));
+      if (mounted) {
+        setState(() => _exportProgress = null);
+      }
+    }
+  }
+
+  Future<void> _downloadAndSaveFile(String url, String authToken) async {
+    try {
+      final filePath = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save exported file',
+        fileName: _generateFileName(),
+      );
+
+      if (filePath == null) {
+        throw Exception('File save cancelled by user');
+      }
+
+      setState(() => _exportProgress = 'Downloading file...');
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $authToken',
+        },
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to download file: ${response.statusCode}');
+      }
+
+      setState(() => _exportProgress = 'Saving file...');
+
+      final file = await File(filePath).create(recursive: true);
+      await file.writeAsBytes(response.bodyBytes);
+
+      setState(() => _exportProgress = 'Export complete!');
+
+      if (mounted) {
+        ToastManager.showSuccess('Export successful!');
+        widget.onExportComplete();
+      }
+    } catch (e) {
+      throw Exception('Failed to download file: $e');
+    }
+  }
+
+  Future<void> _saveFileData(String base64Data) async {
+    try {
+      final filePath = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save exported file',
+        fileName: _generateFileName(),
+      );
+
+      if (filePath == null) {
+        throw Exception('File save cancelled by user');
+      }
+
+      setState(() => _exportProgress = 'Saving file...');
+
+      final bytes = base64Decode(base64Data);
+      final file = await File(filePath).create(recursive: true);
+      await file.writeAsBytes(bytes);
+
+      setState(() => _exportProgress = 'Export complete!');
+
+      if (mounted) {
+        ToastManager.showSuccess('Export successful!');
+        widget.onExportComplete();
+      }
+    } catch (e) {
+      throw Exception('Failed to save file: $e');
+    }
+  }
+
+  Future<void> _saveBinaryFile(Uint8List fileBytes) async {
+    try {
+      final fileName = _generateFileName();
+
+      if (kIsWeb) {
+        setState(() => _exportProgress = 'Downloading file...');
+        await _downloadFileOnWeb(fileBytes, fileName);
+      } else {
+        final filePath = await FilePicker.platform.saveFile(
+          dialogTitle: 'Save exported file',
+          fileName: fileName,
+        );
+
+        if (filePath == null) {
+          throw Exception('File save cancelled by user');
+        }
+
+        setState(() => _exportProgress = 'Saving file...');
+
+        final file = await File(filePath).create(recursive: true);
+        await file.writeAsBytes(fileBytes);
+      }
+
+      setState(() => _exportProgress = 'Export complete!');
+
+      if (mounted) {
+        if (kIsWeb) {
+          ToastManager.showSuccess(
+            'Export complete! $getWebDownloadLocationMessage()',
+            duration: const Duration(seconds: 6),
+          );
+        } else {
+          ToastManager.showSuccess('Export successful!');
+        }
+        widget.onExportComplete();
+      }
+    } catch (e) {
+      throw Exception('Failed to save file: $e');
+    }
+  }
+
+  Future<void> _downloadFileOnWeb(Uint8List fileBytes, String fileName) async {
+    downloadFileOnWeb(fileBytes, fileName, _getMimeType());
+  }
+
+  String _getMimeType() {
+    switch (_selectedFormat) {
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'txt':
+        return 'text/plain';
+      default:
+        return 'application/octet-stream';
     }
   }
 }

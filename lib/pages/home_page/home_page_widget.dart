@@ -1,7 +1,6 @@
 import '/components/modals/keyboard_shortcuts_modal.dart';
 import '/components/modals/image_detail_modal.dart';
 import '/components/modals/audio_detail_modal.dart';
-import '/components/modals/export_modal.dart';
 import '/components/modals/confirm_dialog.dart';
 import '/components/modals/search_modal_enhanced.dart';
 import '/components/modals/new_book_dialog.dart';
@@ -10,6 +9,12 @@ import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/sidebar/book_sidebar/book_sidebar_enhanced.dart';
 import '/pages/book_page/book_page_widget.dart';
+import '/backend/api_requests/api_calls.dart';
+import '/backend/schema/book.dart';
+import '/backend/schema/chapter.dart';
+import '/auth/custom_auth/auth_util.dart';
+import '/toasts/toast_manager.dart';
+import '/components/modals/export_modal.dart' show ChapterItem, ExportModal;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'home_page_model.dart';
@@ -144,7 +149,7 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                         safeSetState(() {});
                       },
                       onExport: () {
-                        if (_selectedChapterId != null) {
+                        if (_selectedBookId != null) {
                           _model.showExportModal = true;
                           safeSetState(() {});
                         }
@@ -432,20 +437,16 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                 ),
               // Export Modal
               if (_model.showExportModal)
-                Dialog(
-                  child: ExportModal(
-                    currentChapterId: 0,
-                    currentChaptName: 'Current Chapter',
-                    currentBookId: 0,
-                    currentBookName: 'Current Book',
-                    selectedItemsCount: 0,
-                    onExport: (config) {
-                      // TODO: Call export API
-                      print('Exporting with config: $config');
-                      _model.showExportModal = false;
-                      safeSetState(() {});
-                    },
-                  ),
+                ExportModalWrapper(
+                  bookId: _selectedBookId!,
+                  onExportComplete: () {
+                    _model.showExportModal = false;
+                    safeSetState(() {});
+                  },
+                  onClose: () {
+                    _model.showExportModal = false;
+                    safeSetState(() {});
+                  },
                 ),
               // Confirm Dialog (for example, delete confirmation)
               if (_model.showConfirmDialog)
@@ -469,6 +470,138 @@ class _HomePageWidgetState extends State<HomePageWidget> {
         ),
       ),
       ),
+    );
+  }
+}
+
+// Wrapper widget to fetch book and chapters data for ExportModal
+class ExportModalWrapper extends StatefulWidget {
+  const ExportModalWrapper({
+    super.key,
+    required this.bookId,
+    required this.onExportComplete,
+    required this.onClose,
+  });
+
+  final int bookId;
+  final VoidCallback onExportComplete;
+  final VoidCallback onClose;
+
+  @override
+  State<ExportModalWrapper> createState() => _ExportModalWrapperState();
+}
+
+class _ExportModalWrapperState extends State<ExportModalWrapper> {
+  Book? _book;
+  List<Chapter> _chapters = [];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBookAndChapters();
+  }
+
+  Future<void> _loadBookAndChapters() async {
+    try {
+      final authToken = currentAuthenticationToken ?? '';
+
+      // Load book details
+      final bookResult = await OCRWorkbenchAPIGroup.getBookCall.call(
+        bookId: widget.bookId,
+        hTTPBearer: authToken,
+      );
+
+      if (bookResult.succeeded) {
+        _book = Book.fromJson(bookResult.jsonBody as Map<String, dynamic>);
+      } else {
+        throw Exception('Failed to load book');
+      }
+
+      // Load chapters
+      final chaptersResult = await OCRWorkbenchAPIGroup.listChaptersCall.call(
+        bookId: widget.bookId,
+        page: 1,
+        pageSize: 100,
+        hTTPBearer: authToken,
+      );
+
+      if (chaptersResult.succeeded) {
+        final paginatedResponse = PaginatedChaptersResponse.fromJson(
+          chaptersResult.jsonBody as Map<String, dynamic>,
+        );
+        _chapters = paginatedResponse.items;
+      }
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load book data: $e';
+          _isLoading = false;
+        });
+        ToastManager.showError('Failed to load book data');
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Dialog(
+        child: Container(
+          padding: const EdgeInsets.all(48),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Loading book data...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_error != null || _book == null) {
+      return Dialog(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error, color: Colors.red, size: 48),
+              SizedBox(height: 16),
+              Text(_error ?? 'Failed to load book data'),
+              SizedBox(height: 16),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  widget.onExportComplete();
+                },
+                child: Text('Close'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Use the actual ExportModal from export_modal.dart
+    // Convert Chapter list to ChapterItem list
+    final chapterItems = _chapters
+        .map((ch) => ChapterItem(id: ch.id, name: ch.name))
+        .toList();
+
+    return ExportModal(
+      bookId: widget.bookId,
+      bookName: _book!.name,
+      chapters: chapterItems,
+      onExportComplete: widget.onExportComplete,
+      onClose: widget.onClose,
     );
   }
 }
