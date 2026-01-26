@@ -8,6 +8,7 @@ import '/toasts/toast_manager.dart';
 import '/models/content_item.dart';
 import '/widgets/audio_player_widget.dart';
 import '/components/modals/transcription_processing_modal.dart';
+import '/utils/clipboard_helper.dart';
 
 class AudioModalView extends StatefulWidget {
   final ContentItem item;
@@ -165,13 +166,21 @@ class _AudioModalViewState extends State<AudioModalView> {
                         ),
                         onPressed: _isCopied
                             ? null
-                            : () {
-                                Clipboard.setData(ClipboardData(text: displayText));
-                                setState(() => _isCopied = true);
-                                ToastManager.showSuccess('Transcript copied to clipboard');
-                                Future.delayed(const Duration(seconds: 2), () {
-                                  if (mounted) setState(() => _isCopied = false);
-                                });
+                            : () async {
+                                try {
+                                  await copyToClipboard(displayText);
+                                  if (mounted) {
+                                    setState(() => _isCopied = true);
+                                    ToastManager.showSuccess('Transcript copied to clipboard');
+                                    Future.delayed(const Duration(seconds: 2), () {
+                                      if (mounted) setState(() => _isCopied = false);
+                                    });
+                                  }
+                                } catch (e) {
+                                  if (mounted) {
+                                    ToastManager.showError('Failed to copy: ${e.toString()}');
+                                  }
+                                }
                               },
                         tooltip: 'Copy transcript',
                       ),

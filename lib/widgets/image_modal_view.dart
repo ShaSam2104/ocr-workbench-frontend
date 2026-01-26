@@ -8,6 +8,8 @@ import '/auth/custom_auth/auth_util.dart';
 import '/toasts/toast_manager.dart';
 import '/models/content_item.dart';
 import '/components/modals/ocr_processing_modal.dart';
+import '/utils/clipboard_helper.dart';
+
 
 class ImageModalView extends StatefulWidget {
   final ContentItem item;
@@ -46,6 +48,26 @@ class _ImageModalViewState extends State<ImageModalView> {
   void dispose() {
     _textController.dispose();
     super.dispose();
+  }
+
+  Future<void> _copyToClipboard(String text) async {
+    try {
+      // Use platform-agnostic clipboard helper
+      // Works on Web, iOS, Android, Windows, macOS, Linux
+      await copyToClipboard(text);
+
+      if (mounted) {
+        setState(() => _isCopied = true);
+        ToastManager.showSuccess('Text copied to clipboard');
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) setState(() => _isCopied = false);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ToastManager.showError('Failed to copy: ${e.toString()}');
+      }
+    }
   }
 
   Future<void> _saveText() async {
@@ -164,22 +186,7 @@ class _ImageModalViewState extends State<ImageModalView> {
                         ),
                         onPressed: _isCopied
                             ? null
-                            : () async {
-                                try {
-                                  await Clipboard.setData(ClipboardData(text: displayText));
-                                  if (mounted) {
-                                    setState(() => _isCopied = true);
-                                    ToastManager.showSuccess('Text copied to clipboard');
-                                    Future.delayed(const Duration(seconds: 2), () {
-                                      if (mounted) setState(() => _isCopied = false);
-                                    });
-                                  }
-                                } catch (e) {
-                                  if (mounted) {
-                                    ToastManager.showError('Failed to copy: ${e.toString()}');
-                                  }
-                                }
-                              },
+                            : () => _copyToClipboard(displayText),
                         tooltip: 'Copy text',
                       ),
                     ),
