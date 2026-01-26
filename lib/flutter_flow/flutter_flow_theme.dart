@@ -169,19 +169,19 @@ class LightModeTheme extends FlutterFlowTheme {
   Color get tertiaryColor => tertiary;
 
   late Color primary = const Color(0xFF0969DA);  // GitHub blue - excellent contrast
-  late Color secondary = const Color(0xFF8B5CF6);  // Modern purple
-  late Color tertiary = const Color(0xFF059669);  // Emerald green
+  late Color secondary = const Color(0xFF8B5CF6);  // Bold orange - vibrant and fun
+  late Color tertiary = const Color(0xFF06B6D4);  // Cyan - modern and fresh
   late Color alternate = const Color(0xFFD1D5DB);  // Much darker gray border - clearly visible
   late Color primaryText = const Color(0xFF111827);  // Rich black for maximum readability
   late Color secondaryText = const Color(0xFF6B7280);  // Balanced gray text
   late Color primaryBackground = const Color(0xFFFFFFFF);  // Pure white
   late Color secondaryBackground = const Color(0xFFF3F4F6);  // Noticeably darker off-white
   late Color accent1 = const Color(0xFFDBEAFE);  // Light blue tint
-  late Color accent2 = const Color(0xFFEDE9FE);  // Light purple tint  
+  late Color accent2 = const Color(0xFFFFEDD5);  // Light orange tint
   late Color accent3 = const Color(0xFFD1FAE5);  // Light green tint
   late Color accent4 = const Color(0xFFE5E7EB);  // Visible light gray
   late Color success = const Color(0xFF059669);  // Emerald success
-  late Color warning = const Color(0xFFD97706);  // Amber warning
+  late Color warning = const Color(0xFF0856A5);  // Amber warning
   late Color error = const Color(0xFFDC2626);  // Clean red error
   late Color info = const Color(0xFF0284C7);  // Sky blue info
 

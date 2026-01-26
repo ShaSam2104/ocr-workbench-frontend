@@ -1165,7 +1165,7 @@ class _SignInPageWidgetState extends State<SignInPageWidget>
                             gradient: LinearGradient(
                               colors: [
                                 FlutterFlowTheme.of(context).secondary,
-                                Colors.transparent
+                                FlutterFlowTheme.of(context).primary,
                               ],
                               stops: [0.0, 1.0],
                               begin: AlignmentDirectional(1.0, -1.0),
