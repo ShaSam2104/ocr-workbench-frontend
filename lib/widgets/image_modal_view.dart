@@ -164,13 +164,21 @@ class _ImageModalViewState extends State<ImageModalView> {
                         ),
                         onPressed: _isCopied
                             ? null
-                            : () {
-                                Clipboard.setData(ClipboardData(text: displayText));
-                                setState(() => _isCopied = true);
-                                ToastManager.showSuccess('Text copied to clipboard');
-                                Future.delayed(const Duration(seconds: 2), () {
-                                  if (mounted) setState(() => _isCopied = false);
-                                });
+                            : () async {
+                                try {
+                                  await Clipboard.setData(ClipboardData(text: displayText));
+                                  if (mounted) {
+                                    setState(() => _isCopied = true);
+                                    ToastManager.showSuccess('Text copied to clipboard');
+                                    Future.delayed(const Duration(seconds: 2), () {
+                                      if (mounted) setState(() => _isCopied = false);
+                                    });
+                                  }
+                                } catch (e) {
+                                  if (mounted) {
+                                    ToastManager.showError('Failed to copy: ${e.toString()}');
+                                  }
+                                }
                               },
                         tooltip: 'Copy text',
                       ),
