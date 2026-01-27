@@ -305,13 +305,7 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
   }
 
   Future<void> _startExtraction() async {
-    if (_selectedFiles.isEmpty) {
-      _showErrorToast('Please select files first');
-      return;
-    }
-
-    final imageFiles =
-        _selectedFiles.where((f) => f.fileType == 'image').toList();
+    final imageFiles = _selectedFiles.where((f) => f.fileType == 'image').toList();
     if (imageFiles.isEmpty) {
       _showErrorToast('Please select at least one image file');
       return;
@@ -497,13 +491,7 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
   }
 
   Future<void> _startTranscription() async {
-    if (_selectedFiles.isEmpty) {
-      _showErrorToast('Please select files first');
-      return;
-    }
-
-    final audioFiles =
-        _selectedFiles.where((f) => f.fileType == 'audio').toList();
+    final audioFiles = _selectedFiles.where((f) => f.fileType == 'audio').toList();
     if (audioFiles.isEmpty) {
       _showErrorToast('Please select at least one audio file');
       return;
@@ -1115,30 +1103,27 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
             ),
             const SizedBox(height: 28),
             if (_selectedFiles.isNotEmpty) ...[
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: theme.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(6),
+              // File count indicator
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: theme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_circle_rounded, size: 16, color: theme.primary),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${_selectedFiles.length} ${_selectedFiles.length == 1 ? 'File' : 'Files'} Selected',
+                      style: theme.labelMedium.copyWith(
+                        color: theme.primary,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.check_circle_rounded, size: 16, color: theme.primary),
-                        const SizedBox(width: 6),
-                        Text(
-                          '${_selectedFiles.length} ${_selectedFiles.length == 1 ? 'File' : 'Files'} Selected',
-                          style: theme.labelMedium.copyWith(
-                            color: theme.primary,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
               Container(
@@ -1274,7 +1259,7 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
                       size: 18,
                     ),
                     label: const Text(
-                      'Start Extraction (Ctrl+E)',
+                      'Start Extraction',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -1307,7 +1292,7 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
                       size: 18,
                     ),
                     label: const Text(
-                      'Start Transcription (Ctrl+T)',
+                      'Start Transcription',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,

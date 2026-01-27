@@ -262,7 +262,7 @@ class _SignInPageWidgetState extends State<SignInPageWidget>
                                                             .fromSTEB(5.0, 0.0,
                                                                 0.0, 0.0),
                                                     child: Text(
-                                                      'Gyan ni bahari',
+                                                      'Gyanni baari',
                                                       style: FlutterFlowTheme
                                                               .of(context)
                                                           .bodyMedium
@@ -402,7 +402,7 @@ class _SignInPageWidgetState extends State<SignInPageWidget>
                                                             .fromSTEB(5.0, 0.0,
                                                                 0.0, 0.0),
                                                     child: Text(
-                                                      'Gyan ni bahari',
+                                                      'Gyanni baari',
                                                       style:
                                                           FlutterFlowTheme.of(
                                                                   context)
@@ -1220,7 +1220,7 @@ class _SignInPageWidgetState extends State<SignInPageWidget>
                                                 EdgeInsetsDirectional.fromSTEB(
                                                     5.0, 0.0, 0.0, 0.0),
                                             child: Text(
-                                              'Gyan ni bahari',
+                                              'Gyanni baari',
                                               style: FlutterFlowTheme.of(
                                                       context)
                                                   .bodyMedium
