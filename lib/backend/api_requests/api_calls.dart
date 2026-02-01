@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
 import '/flutter_flow/flutter_flow_util.dart';
+import '/flutter_flow/uploaded_file.dart';
 import 'api_manager.dart';
 
 export 'api_manager.dart' show ApiCallResponse;
@@ -15,19 +17,19 @@ class OCRWorkbenchAPIGroup {
   static String getBaseUrl() {
     // In production (web builds), dynamically detect hostname
     // In development, use localhost backend directly
-    if (kIsWeb) {
-      // For web builds, use the current origin to construct API URL
-      // This works for localhost, 127.0.0.1, and network IP addresses
-      try {
-        final origin = Uri.base.origin;
-        return '$origin/api';
-      } catch (e) {
-        // Fallback if window.location is not available
-        return '/api';
-      }
-    }
+    // if (kIsWeb) {
+    //   // For web builds, use the current origin to construct API URL
+    //   // This works for localhost, 127.0.0.1, and network IP addresses
+    //   try {
+    //     final origin = Uri.base.origin;
+    //     return '$origin/api';
+    //   } catch (e) {
+    //     // Fallback if window.location is not available
+    //     return '/api';
+    //   }
+    // }
     // Development: Use hardcoded backend URL
-    return 'http://localhost:8001';
+    return 'http://localhost:8002';
   }
   static Map<String, String> headers = {};
   static LoginCall loginCall = LoginCall();
@@ -78,6 +80,9 @@ class OCRWorkbenchAPIGroup {
   static SearchGlobalCall searchGlobalCall = SearchGlobalCall();
   static ExportFolderCall exportFolderCall = ExportFolderCall();
   static ExportSelectionCall exportSelectionCall = ExportSelectionCall();
+  static ExportJsonCall exportJsonCall = ExportJsonCall();
+  static ImportJsonCall importJsonCall = ImportJsonCall();
+  static ExportImportInfoCall exportImportInfoCall = ExportImportInfoCall();
   static HealthCheckCall healthCheckCall = HealthCheckCall();
 }
 
@@ -1270,6 +1275,101 @@ class HealthCheckCall {
       apiUrl: '${baseUrl}/health',
       callType: ApiCallType.GET,
       headers: {},
+      params: {},
+      returnBody: true,
+      encodeBodyUtf8: false,
+      decodeUtf8: false,
+      cache: false,
+      isStreamingApi: false,
+      alwaysAllowBody: false,
+    );
+  }
+}
+
+class ExportJsonCall {
+  Future<ApiCallResponse> call({
+    String? hTTPBearer = '',
+    List<int>? bookIdsList,
+    List<int>? chapterIdsList,
+    bool? includeBinaryFiles = true,
+  }) async {
+    final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
+    final bookIds = bookIdsList != null ? _serializeList(bookIdsList) : 'null';
+    final chapterIds = chapterIdsList != null ? _serializeList(chapterIdsList) : 'null';
+
+    final includeBinary = includeBinaryFiles == true ? 'true' : 'false';
+
+    final ffApiRequestBody = '''
+{
+  "book_ids": $bookIds,
+  "chapter_ids": $chapterIds,
+  "include_binary_files": $includeBinary
+}''';
+    return ApiManager.instance.makeApiCall(
+      callName: 'Export JSON',
+      apiUrl: '${baseUrl}/export-import/export',
+      callType: ApiCallType.POST,
+      headers: {
+        'Authorization': 'Bearer ${hTTPBearer}',
+      },
+      params: {},
+      body: ffApiRequestBody,
+      bodyType: BodyType.JSON,
+      returnBody: true,
+      encodeBodyUtf8: false,
+      decodeUtf8: false,  // Now uses Utf8Decoder by default in ApiManager
+      cache: false,
+      isStreamingApi: false,
+      alwaysAllowBody: false,
+    );
+  }
+}
+
+class ImportJsonCall {
+  Future<ApiCallResponse> call({
+    String? hTTPBearer = '',
+    String? mergeStrategy = 'skip_duplicates',
+    bool? preserveUuids = false,
+    FFUploadedFile? file,
+  }) async {
+    final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
+
+    return ApiManager.instance.makeApiCall(
+      callName: 'Import JSON',
+      apiUrl: '${baseUrl}/export-import/import',
+      callType: ApiCallType.POST,
+      headers: {
+        'Authorization': 'Bearer ${hTTPBearer}',
+      },
+      params: {
+        'merge_strategy': mergeStrategy ?? 'skip_duplicates',
+        'preserve_uuids': preserveUuids?.toString() ?? 'false',
+        'file': file,
+      },
+      bodyType: BodyType.MULTIPART,
+      returnBody: true,
+      encodeBodyUtf8: false,
+      decodeUtf8: false,
+      cache: false,
+      isStreamingApi: false,
+      alwaysAllowBody: false,
+    );
+  }
+}
+
+class ExportImportInfoCall {
+  Future<ApiCallResponse> call({
+    String? hTTPBearer = '',
+  }) async {
+    final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
+
+    return ApiManager.instance.makeApiCall(
+      callName: 'Export/Import Info',
+      apiUrl: '${baseUrl}/export-import/info',
+      callType: ApiCallType.GET,
+      headers: {
+        'Authorization': 'Bearer ${hTTPBearer}',
+      },
       params: {},
       returnBody: true,
       encodeBodyUtf8: false,

@@ -47,8 +47,13 @@ class KeyboardShortcutsReference {
       category: categoryGlobal,
     ),
     KeyboardShortcut(
-      key: 'Ctrl + E',
+      key: 'Ctrl + Shift + E',
       description: 'Open export dialog',
+      category: categoryGlobal,
+    ),
+    KeyboardShortcut(
+      key: 'Ctrl + I',
+      description: 'Open import dialog',
       category: categoryGlobal,
     ),
     KeyboardShortcut(

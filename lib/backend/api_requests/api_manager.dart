@@ -149,6 +149,7 @@ class ApiCallResponse {
     this.response,
     this.streamedResponse,
     this.exception,
+    this.rawBody,
   });
   final dynamic jsonBody;
   final Map<String, String> headers;
@@ -156,13 +157,13 @@ class ApiCallResponse {
   final http.Response? response;
   final http.StreamedResponse? streamedResponse;
   final Object? exception;
-  // Whether we received a 2xx status (which generally marks success).
+  final String? rawBody;
+  // Whether we received a 2xx status (which generally marks success.
   bool get succeeded => statusCode >= 200 && statusCode < 300;
   String getHeader(String headerName) => headers[headerName] ?? '';
-  // Return the raw body from the response, or if this came from a cloud call
-  // and the body is not a string, then the json encoded body.
+  // Return the raw body from the response, prioritizing rawBody for large responses
   String get bodyText =>
-      response?.body ??
+      rawBody ?? response?.body ??
       (jsonBody is String ? jsonBody as String : jsonEncode(jsonBody));
   String get exceptionMessage => exception.toString();
 
@@ -178,6 +179,7 @@ class ApiCallResponse {
     http.Response? response,
     http.StreamedResponse? streamedResponse,
     Object? exception,
+    String? rawBody,
   }) {
     return ApiCallResponse(
       jsonBody ?? this.jsonBody,
@@ -186,6 +188,7 @@ class ApiCallResponse {
       response: response ?? this.response,
       streamedResponse: streamedResponse ?? this.streamedResponse,
       exception: exception ?? this.exception,
+      rawBody: rawBody ?? this.rawBody,
     );
   }
 
@@ -195,10 +198,11 @@ class ApiCallResponse {
     bool decodeUtf8,
   ) {
     dynamic jsonBody;
+    String? rawBody;
     try {
-      final responseBody = decodeUtf8 && returnBody
-          ? const Utf8Decoder().convert(response.bodyBytes)
-          : response.body;
+      // Always decode using Utf8Decoder for large responses to avoid truncation
+      final responseBody = const Utf8Decoder().convert(response.bodyBytes);
+      rawBody = responseBody;
       jsonBody = returnBody ? json.decode(responseBody) : null;
     } catch (_) {}
     return ApiCallResponse(
@@ -206,6 +210,7 @@ class ApiCallResponse {
       response.headers,
       response.statusCode,
       response: response,
+      rawBody: rawBody,
     );
   }
 

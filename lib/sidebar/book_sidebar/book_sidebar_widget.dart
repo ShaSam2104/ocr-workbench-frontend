@@ -16,11 +16,13 @@ class BookSidebarWidget extends StatefulWidget {
     this.onNewBook,
     this.onItemSelect,
     this.onSearch,
+    this.onImport,
   });
 
   final Future Function()? onNewBook;
   final Future Function()? onItemSelect;
   final Future Function()? onSearch;
+  final Future Function()? onImport;
 
   @override
   State<BookSidebarWidget> createState() => _BookSidebarWidgetState();
@@ -156,6 +158,51 @@ class _BookSidebarWidgetState extends State<BookSidebarWidget>
                         text: 'New Book',
                         icon: Icon(
                           Icons.add,
+                          size: 16.0,
+                        ),
+                        options: FFButtonOptions(
+                          height: 40.0,
+                          padding: EdgeInsetsDirectional.fromSTEB(
+                              16.0, 0.0, 16.0, 0.0),
+                          iconPadding: EdgeInsetsDirectional.fromSTEB(
+                              0.0, 0.0, 0.0, 0.0),
+                          color: Colors.transparent,
+                          textStyle:
+                              FlutterFlowTheme.of(context).bodyMedium.override(
+                                    font: GoogleFonts.interTight(
+                                      fontWeight: FlutterFlowTheme.of(context)
+                                          .bodyMedium
+                                          .fontWeight,
+                                      fontStyle: FlutterFlowTheme.of(context)
+                                          .bodyMedium
+                                          .fontStyle,
+                                    ),
+                                    letterSpacing: 0.0,
+                                    fontWeight: FlutterFlowTheme.of(context)
+                                        .bodyMedium
+                                        .fontWeight,
+                                    fontStyle: FlutterFlowTheme.of(context)
+                                        .bodyMedium
+                                        .fontStyle,
+                                  ),
+                          elevation: 0.0,
+                          borderSide: BorderSide(
+                            color: FlutterFlowTheme.of(context).accent4,
+                            width: 1.0,
+                          ),
+                          borderRadius: BorderRadius.circular(24.0),
+                        ),
+                      ),
+                    ),
+                    Align(
+                      alignment: AlignmentDirectional(-1.0, 0.0),
+                      child: FFButtonWidget(
+                        onPressed: () async {
+                          await widget.onImport?.call();
+                        },
+                        text: 'Import Archive',
+                        icon: Icon(
+                          Icons.upload_file,
                           size: 16.0,
                         ),
                         options: FFButtonOptions(

@@ -8,7 +8,6 @@ import '/components/modals/image_preview_crop_modal.dart';
 import '/utils/pdf_processor.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:async';
-import 'dart:typed_data';
 import '/toasts/toast_manager.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/foundation.dart';
@@ -88,7 +87,12 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(_onTabChanged);
     _focusNode = FocusNode();
-    
+
+    // Request focus to enable keyboard shortcuts
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusNode.requestFocus();
+    });
+
     // Debug: Check if we're on web and desktop_drop support
     debugPrint('📱 Platform check: web=${identical(0, 0.0)}');
     debugPrint('🎯 DropTarget from desktop_drop should be available');
@@ -109,22 +113,39 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
     });
   }
 
-  void _handleKeyEvent(RawKeyEvent event) {
-    if (event.isKeyPressed(LogicalKeyboardKey.escape)) {
-      Navigator.of(context).pop();
-    } else if (event.isKeyPressed(LogicalKeyboardKey.keyE) &&
-        HardwareKeyboard.instance
-            .isLogicalKeyPressed(LogicalKeyboardKey.controlLeft)) {
-      if (_currentTabIndex == 0) {
-        _startExtraction();
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    // Check if Control or Command key is pressed (works on all platforms)
+    final isControlPressed = HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.controlLeft) ||
+        HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.controlRight);
+    final isMetaPressed = HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.metaLeft) ||
+        HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.metaRight);
+    final isModifierPressed = isControlPressed || isMetaPressed;
+
+    if (event is KeyDownEvent) {
+      // Escape to close modal
+      if (event.logicalKey == LogicalKeyboardKey.escape) {
+        Navigator.of(context).pop();
+        return KeyEventResult.handled;
       }
-    } else if (event.isKeyPressed(LogicalKeyboardKey.keyT) &&
-        HardwareKeyboard.instance
-            .isLogicalKeyPressed(LogicalKeyboardKey.controlLeft)) {
-      if (_currentTabIndex == 0) {
-        _startTranscription();
+
+      // Ctrl/Cmd + E: Start Extraction
+      if (event.logicalKey == LogicalKeyboardKey.keyE && isModifierPressed) {
+        if (_currentTabIndex == 0) {
+          _startExtraction();
+        }
+        return KeyEventResult.handled;
+      }
+
+      // Ctrl/Cmd + T: Start Transcription
+      if (event.logicalKey == LogicalKeyboardKey.keyT && isModifierPressed) {
+        if (_currentTabIndex == 0) {
+          _startTranscription();
+        }
+        return KeyEventResult.handled;
       }
     }
+
+    return KeyEventResult.ignored;
   }
 
   Future<void> _pickFiles(String fileType) async {
@@ -803,9 +824,9 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
     final isDesktop = MediaQuery.of(context).size.width >= 1200;
     final isTablet = MediaQuery.of(context).size.width >= 600;
 
-    return RawKeyboardListener(
+    return Focus(
       focusNode: _focusNode,
-      onKey: _handleKeyEvent,
+      onKeyEvent: _handleKeyEvent,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -1205,6 +1226,40 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
                   },
                 ),
               ),
+              const SizedBox(height: 16),
+              // Keyboard shortcuts hint
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.primary.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: theme.primary.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.keyboard_rounded,
+                      size: 16,
+                      color: theme.secondaryText,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Wrap(
+                        spacing: 16,
+                        runSpacing: 4,
+                        children: [
+                          _buildShortcutHint('⌘E', 'Start Extraction', theme),
+                          _buildShortcutHint('⌘T', 'Start Transcription', theme),
+                          _buildShortcutHint('Esc', 'Close', theme),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 20),
             ] else ...[
               Container(
@@ -1258,12 +1313,33 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
                       Icons.auto_awesome_rounded,
                       size: 18,
                     ),
-                    label: const Text(
-                      'Start Extraction',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    label: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Start Extraction',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            '⌘E',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF10B981),
@@ -1291,12 +1367,33 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
                       Icons.graphic_eq_rounded,
                       size: 18,
                     ),
-                    label: const Text(
-                      'Start Transcription',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    label: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Start Transcription',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            '⌘T',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: theme.secondary,
@@ -1598,6 +1695,40 @@ class _UploadProcessingModalState extends State<UploadProcessingModal>
           style: const TextStyle(
             fontSize: 12,
             color: Colors.grey,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildShortcutHint(String shortcut, String description, FlutterFlowTheme theme) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          decoration: BoxDecoration(
+            color: theme.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: theme.primary.withValues(alpha: 0.2),
+              width: 1,
+            ),
+          ),
+          child: Text(
+            shortcut,
+            style: theme.labelSmall.copyWith(
+              color: theme.primary,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          description,
+          style: theme.bodySmall.copyWith(
+            color: theme.secondaryText,
           ),
         ),
       ],

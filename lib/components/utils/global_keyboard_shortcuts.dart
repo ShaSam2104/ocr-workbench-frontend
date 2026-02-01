@@ -7,6 +7,7 @@ class GlobalKeyboardShortcuts extends StatefulWidget {
   final Widget child;
   final VoidCallback? onCtrlK;
   final VoidCallback? onCtrlE;
+  final VoidCallback? onCtrlI;
   final VoidCallback? onCtrlF;
   final VoidCallback? onToggleTheme;
   final VoidCallback? onShowHelp;
@@ -16,6 +17,7 @@ class GlobalKeyboardShortcuts extends StatefulWidget {
     required this.child,
     this.onCtrlK,
     this.onCtrlE,
+    this.onCtrlI,
     this.onCtrlF,
     this.onToggleTheme,
     this.onShowHelp,
@@ -69,10 +71,17 @@ class _GlobalKeyboardShortcutsState extends State<GlobalKeyboardShortcuts> {
       return true;
     }
 
-    // Cmd/Ctrl + E
-    if (isModifierPressed && !isShiftPressed && event.logicalKey == LogicalKeyboardKey.keyE) {
-      print('⌨️ Cmd/Ctrl+E detected!');
+    // Cmd/Ctrl + Shift + E
+    if (isModifierPressed && isShiftPressed && event.logicalKey == LogicalKeyboardKey.keyE) {
+      print('⌨️ Cmd/Ctrl+Shift+E detected!');
       widget.onCtrlE?.call();
+      return true;
+    }
+
+    // Cmd/Ctrl + I
+    if (isModifierPressed && !isShiftPressed && event.logicalKey == LogicalKeyboardKey.keyI) {
+      print('⌨️ Cmd/Ctrl+I detected!');
+      widget.onCtrlI?.call();
       return true;
     }
 
@@ -97,7 +106,7 @@ class _GlobalKeyboardShortcutsState extends State<GlobalKeyboardShortcuts> {
   Widget build(BuildContext context) {
     print('🔧 GlobalKeyboardShortcuts: Building widget');
     print('🔧 Platform: ${defaultTargetPlatform}');
-    print('🔧 Callbacks registered: K=${widget.onCtrlK != null}, F=${widget.onCtrlF != null}, E=${widget.onCtrlE != null}, Theme=${widget.onToggleTheme != null}, Help=${widget.onShowHelp != null}');
+    print('🔧 Callbacks registered: K=${widget.onCtrlK != null}, F=${widget.onCtrlF != null}, E=${widget.onCtrlE != null}, I=${widget.onCtrlI != null}, Theme=${widget.onToggleTheme != null}, Help=${widget.onShowHelp != null}');
     
     return widget.child;
   }

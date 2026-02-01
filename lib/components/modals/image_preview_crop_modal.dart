@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+
+import 'package:flutter/services.dart';
 import 'package:crop_your_image/crop_your_image.dart';
-import 'dart:typed_data';
 import '/flutter_flow/flutter_flow_theme.dart';
 
 class FileForPreview {
@@ -42,17 +43,76 @@ class _ImagePreviewCropModalState extends State<ImagePreviewCropModal> {
   bool _isProcessing = false;
   int? _currentCropIndex;
   final _cropController = CropController();
+  late FocusNode _focusNode;
 
   @override
   void initState() {
     super.initState();
     _files = List.from(widget.initialFiles);
+    _focusNode = FocusNode();
+
+    // Request focus to enable keyboard shortcuts
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusNode.requestFocus();
+    });
   }
 
   @override
   void dispose() {
     // CropController doesn't have dispose method in version 1.0.2
+    _focusNode.dispose();
     super.dispose();
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    // Check if Control or Command key is pressed (works on all platforms)
+    final isControlPressed = HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.controlLeft) ||
+        HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.controlRight);
+    final isMetaPressed = HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.metaLeft) ||
+        HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.metaRight);
+    final isShiftPressed = HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.shiftLeft) ||
+        HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.shiftRight);
+    final isModifierPressed = isControlPressed || isMetaPressed;
+
+    if (event is KeyDownEvent) {
+      // Escape to close modal
+      if (event.logicalKey == LogicalKeyboardKey.escape) {
+        widget.onClose();
+        Navigator.of(context).pop();
+        return KeyEventResult.handled;
+      }
+
+      // Ctrl/Cmd + A: Select All (standard, doesn't conflict)
+      if (event.logicalKey == LogicalKeyboardKey.keyA && isModifierPressed) {
+        _selectAll();
+        return KeyEventResult.handled;
+      }
+
+      // Ctrl/Cmd + Shift + X: Deselect All (X for clear, avoids Chrome bookmarks)
+      if (event.logicalKey == LogicalKeyboardKey.keyX && isModifierPressed && isShiftPressed) {
+        _deselectAll();
+        return KeyEventResult.handled;
+      }
+
+      // Ctrl/Cmd + ; : Select Range (semicolon, safe from browser conflicts)
+      if (event.logicalKey == LogicalKeyboardKey.semicolon && isModifierPressed) {
+        _showRangeSelectionDialog();
+        return KeyEventResult.handled;
+      }
+
+      // Enter: Confirm and continue (when files are selected)
+      if (event.logicalKey == LogicalKeyboardKey.enter) {
+        final selectedCount = _files.where((f) => f.isSelected).length;
+        if (selectedCount > 0) {
+          final selectedFiles = _files.where((f) => f.isSelected).toList();
+          widget.onConfirm(selectedFiles);
+          Navigator.of(context).pop();
+        }
+        return KeyEventResult.handled;
+      }
+    }
+
+    return KeyEventResult.ignored;
   }
 
   void _startCrop(int index) {
@@ -147,29 +207,67 @@ class _ImagePreviewCropModalState extends State<ImagePreviewCropModal> {
     required String tooltip,
     required VoidCallback onTap,
     required FlutterFlowTheme theme,
+    String? shortcutLabel,
+    String? textLabel,
   }) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: theme.primary.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: theme.primary.withValues(alpha: 0.15),
-              width: 1.5,
-            ),
-          ),
-          child: Icon(
-            icon,
-            size: 20,
-            color: theme.primary,
+    final button = InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: theme.primary.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: theme.primary.withValues(alpha: 0.15),
+            width: 1.5,
           ),
         ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: theme.primary,
+            ),
+            if (textLabel != null) ...[
+              const SizedBox(width: 8),
+              Text(
+                textLabel,
+                style: theme.labelMedium.copyWith(
+                  color: theme.primaryText,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+            if (shortcutLabel != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: theme.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  shortcutLabel,
+                  style: theme.labelSmall.copyWith(
+                    color: theme.primary,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
+    );
+
+    return Tooltip(
+      message: tooltip,
+      child: button,
     );
   }
 
@@ -302,10 +400,13 @@ class _ImagePreviewCropModalState extends State<ImagePreviewCropModal> {
     }
 
     // Show preview grid
-    return Dialog(
-      backgroundColor: theme.secondaryBackground,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
+    return Focus(
+      focusNode: _focusNode,
+      onKeyEvent: _handleKeyEvent,
+      child: Dialog(
+        backgroundColor: theme.secondaryBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
         width: MediaQuery.of(context).size.width * 0.9,
         height: MediaQuery.of(context).size.height * 0.85,
         decoration: BoxDecoration(
@@ -397,7 +498,7 @@ class _ImagePreviewCropModalState extends State<ImagePreviewCropModal> {
                     ),
                   ),
                   const Spacer(),
-                  // Minimal selection buttons with icons only
+                  // Minimal selection buttons with icons and shortcuts
                   Row(
                     children: [
                       _buildMinimalButton(
@@ -405,6 +506,8 @@ class _ImagePreviewCropModalState extends State<ImagePreviewCropModal> {
                         tooltip: 'Select All',
                         onTap: _selectAll,
                         theme: theme,
+                        textLabel: 'Select All',
+                        shortcutLabel: '⌘A',
                       ),
                       const SizedBox(width: 8),
                       _buildMinimalButton(
@@ -412,6 +515,8 @@ class _ImagePreviewCropModalState extends State<ImagePreviewCropModal> {
                         tooltip: 'Deselect All',
                         onTap: _deselectAll,
                         theme: theme,
+                        textLabel: 'Deselect All',
+                        shortcutLabel: '⇧⌘X',
                       ),
                       const SizedBox(width: 8),
                       _buildMinimalButton(
@@ -419,6 +524,8 @@ class _ImagePreviewCropModalState extends State<ImagePreviewCropModal> {
                         tooltip: 'Select Range',
                         onTap: _showRangeSelectionDialog,
                         theme: theme,
+                        textLabel: 'Range',
+                        shortcutLabel: '⌘;',
                       ),
                     ],
                   ),
@@ -531,6 +638,7 @@ class _ImagePreviewCropModalState extends State<ImagePreviewCropModal> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

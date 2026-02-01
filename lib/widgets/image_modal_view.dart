@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
@@ -127,10 +126,22 @@ class _ImageModalViewState extends State<ImageModalView> {
     );
   }
 
+  /// Convert single newlines to markdown line breaks
+  /// Markdown requires two spaces + newline or double newline for line breaks
+  String _preprocessMarkdownText(String text) {
+    // Replace single newlines with two spaces + newline (markdown line break)
+    // But preserve double newlines as paragraph breaks
+    return text.replaceAllMapped(
+      RegExp(r'(?<!\n)\n(?!\n)'),
+      (match) => '  \n',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasText = widget.item.ocrText != null || widget.item.rawOcrText != null;
-    final displayText = widget.item.ocrText ?? widget.item.rawOcrText ?? 'No text extracted';
+    final rawText = widget.item.ocrText ?? widget.item.rawOcrText ?? 'No text extracted';
+    final displayText = _preprocessMarkdownText(rawText);
     final status = widget.item.ocrStatus ?? 'pending';
 
     return Dialog(

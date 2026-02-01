@@ -4,6 +4,7 @@ import '/components/modals/audio_detail_modal.dart';
 import '/components/modals/confirm_dialog.dart';
 import '/components/modals/search_modal_enhanced.dart';
 import '/components/modals/new_book_dialog.dart';
+import '/components/modals/import_modal.dart';
 import '/components/utils/global_keyboard_shortcuts.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
@@ -65,6 +66,31 @@ class _HomePageWidgetState extends State<HomePageWidget> {
         print('🔍 After: showSearchModal=${_model.showSearchModal}');
         safeSetState(() {});
         print('🔍 safeSetState called');
+      },
+      onCtrlE: () {
+        print('📤 HomePage: onCtrlE callback triggered - Export');
+        if (_selectedBookId != null) {
+          _model.showExportModal = true;
+          safeSetState(() {});
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Select a book to export first'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      },
+      onCtrlI: () {
+        print('📥 HomePage: onCtrlI callback triggered - Import');
+        showDialog(
+          context: context,
+          builder: (context) => ImportModal(
+            onImportComplete: () {
+              _sidebarKey.currentState?.refreshBooks();
+            },
+          ),
+        );
       },
       onCtrlF: () {
         print('🔍 HomePage: onCtrlF callback triggered!');
@@ -153,6 +179,16 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                           _model.showExportModal = true;
                           safeSetState(() {});
                         }
+                      },
+                      onImport: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => ImportModal(
+                            onImportComplete: () {
+                              _sidebarKey.currentState?.refreshBooks();
+                            },
+                          ),
+                        );
                       },
                       onShare: () {
                         if (_selectedChapterId != null) {

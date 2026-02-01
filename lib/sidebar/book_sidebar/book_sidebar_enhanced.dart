@@ -21,6 +21,7 @@ class BookSidebarEnhanced extends StatefulWidget {
     required this.onNewChapter,
     required this.onSearch,
     required this.onExport,
+    required this.onImport,
     required this.onShare,
     required this.onShowHelp,
     this.selectedBookId,
@@ -33,6 +34,7 @@ class BookSidebarEnhanced extends StatefulWidget {
   final VoidCallback onNewChapter;
   final VoidCallback onSearch;
   final VoidCallback onExport;
+  final VoidCallback onImport;
   final VoidCallback onShare;
   final VoidCallback onShowHelp;
   final int? selectedBookId;
@@ -1325,6 +1327,23 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
               ),
             if (widget.selectedBookId != null)
               const SizedBox(height: 4.0),
+            // Import (always available)
+            Tooltip(
+              message: 'Import',
+              child: InkWell(
+                onTap: widget.onImport,
+                borderRadius: BorderRadius.circular(6.0),
+                child: Container(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Icon(
+                    Icons.upload_file_rounded,
+                    size: 20.0,
+                    color: FlutterFlowTheme.of(context).secondaryText,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4.0),
             // Theme Toggle
             Tooltip(
               message: 'Toggle theme',
@@ -1459,6 +1478,44 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
               ),
             if (widget.selectedBookId != null)
               const SizedBox(width: 6.0),
+            // Import Button (always available)
+            Tooltip(
+              message: 'Import archive',
+              child: InkWell(
+                onTap: widget.onImport,
+                borderRadius: BorderRadius.circular(6.0),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+                  decoration: BoxDecoration(
+                    color: FlutterFlowTheme.of(context).primaryBackground,
+                    borderRadius: BorderRadius.circular(6.0),
+                    border: Border.all(
+                      color: FlutterFlowTheme.of(context).alternate,
+                      width: 1.0,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.upload_file_rounded,
+                        size: 15.0,
+                        color: FlutterFlowTheme.of(context).secondaryText,
+                      ),
+                      const SizedBox(width: 4.0),
+                      Text(
+                        'Import',
+                        style: FlutterFlowTheme.of(context).labelSmall.override(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 11.0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6.0),
             // Theme Toggle
             Tooltip(
               message: 'Toggle dark/light mode',

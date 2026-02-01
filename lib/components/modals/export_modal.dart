@@ -10,6 +10,7 @@ import '/flutter_flow/flutter_flow_theme.dart';
 import '/backend/api_requests/api_calls.dart';
 import '/auth/custom_auth/auth_util.dart';
 import '/toasts/toast_manager.dart';
+import '/services/import_service.dart';
 
 // Conditional import for web functionality
 import 'export_modal_web.dart' if (dart.library.html) 'export_modal_web.dart';
@@ -255,55 +256,103 @@ class _ExportModalState extends State<ExportModal> {
                           _buildFormatButton('docx', 'Word', theme),
                           const SizedBox(width: 8),
                           _buildFormatButton('txt', 'Text', theme),
+                          const SizedBox(width: 8),
+                          _buildFormatButton('json', 'JSON', theme),
                         ],
                       ),
                     ),
                     const SizedBox(height: 16),
                     // Options
-                    Text(
-                      'Options',
-                      style: theme.bodySmall.copyWith(
-                        fontWeight: FontWeight.w600,
+                    if (_selectedFormat != 'json') ...[
+                      Text(
+                        'Options',
+                        style: theme.bodySmall.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildToggleOption(
-                      'Include Images',
-                      _includeImages,
-                      (value) {
-                        setState(() {
-                          _includeImages = value;
-                          setState(() {});
-                        });
-                        },
-                      theme,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildToggleOption(
-                      'Include Transcripts',
-                      _includeTranscripts,
-                      (value) {
-                        setState(() {
-                          _includeTranscripts = value;
-                          setState(() {});
-                        });
-                        },
-                      theme,
-                    ),
-                    const SizedBox(height: 8),
-                    if (_selectedFormat == 'docx')
+                      const SizedBox(height: 8),
                       _buildToggleOption(
-                        'Include Page Breaks',
-                        _includePageBreaks,
+                        'Include Images',
+                        _includeImages,
                         (value) {
                           setState(() {
-                            _includePageBreaks = value;
+                            _includeImages = value;
                             setState(() {});
                           });
                           },
                         theme,
                       ),
-                    const SizedBox(height: 16),
+                      const SizedBox(height: 8),
+                      _buildToggleOption(
+                        'Include Transcripts',
+                        _includeTranscripts,
+                        (value) {
+                          setState(() {
+                            _includeTranscripts = value;
+                            setState(() {});
+                          });
+                          },
+                        theme,
+                      ),
+                      const SizedBox(height: 8),
+                      if (_selectedFormat == 'docx')
+                        _buildToggleOption(
+                          'Include Page Breaks',
+                          _includePageBreaks,
+                          (value) {
+                            setState(() {
+                              _includePageBreaks = value;
+                              setState(() {});
+                            });
+                            },
+                          theme,
+                        ),
+                      const SizedBox(height: 16),
+                    ],
+                    if (_selectedFormat == 'json') ...[
+                      Text(
+                        'JSON Export Info',
+                        style: theme.bodySmall.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: theme.info.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: theme.info.withValues(alpha: 0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  size: 16,
+                                  color: theme.info,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'JSON export creates a self-contained archive with embedded base64-encoded files.',
+                                    style: theme.bodySmall.copyWith(
+                                      color: theme.primaryText,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     // Preview info
                     Container(
                       padding: const EdgeInsets.all(12),
@@ -450,8 +499,13 @@ class _ExportModalState extends State<ExportModal> {
     final chapterText = _selectedChapterId == null
         ? 'All Chapters'
         : 'Chapter: ${widget.chapters.firstWhere((c) => c.id == _selectedChapterId, orElse: () => ChapterItem(id: 0, name: 'Unknown')).name}';
-    final includes = <String>[];
 
+    // JSON export has different preview text
+    if (_selectedFormat == 'json') {
+      return 'Exporting "$chapterText" from "${widget.bookName}" as JSON ${_includeImages ? 'with embedded images' : '(text only)'}';
+    }
+
+    final includes = <String>[];
     if (_includeImages) includes.add('images');
     if (_includeTranscripts) includes.add('transcripts');
     if (_selectedFormat == 'docx' && _includePageBreaks) {
@@ -488,6 +542,12 @@ class _ExportModalState extends State<ExportModal> {
 
       if (authToken.isEmpty) {
         throw Exception('Authentication token not found. Please log in again.');
+      }
+
+      // Handle JSON export differently
+      if (_selectedFormat == 'json') {
+        await _performJsonExport(authToken);
+        return;
       }
 
       setState(() => _exportProgress = 'Calling export API...');
@@ -690,12 +750,91 @@ class _ExportModalState extends State<ExportModal> {
     }
   }
 
+  Future<void> _performJsonExport(String authToken) async {
+    try {
+      setState(() => _exportProgress = 'Exporting to JSON...');
+
+      // Build the book IDs list - if chapter is selected, export just that book
+      // The export service will handle filtering by chapter if needed
+      final bookIds = _selectedChapterId == null ? [widget.bookId] : [widget.bookId];
+      final chapterIds = _selectedChapterId != null ? [_selectedChapterId!] : null;
+
+      // Call the JSON export API
+      // NOTE: For JSON, we ALWAYS include binary files regardless of the toggle
+      // This ensures the export is self-contained and can be imported later
+      final jsonData = await ImportService.exportToJson(
+        bookIds: bookIds,
+        chapterIds: chapterIds,
+        includeBinaryFiles: true,  // Always true for JSON exports
+      );
+
+      setState(() => _exportProgress = 'Preparing file save...');
+
+      // Generate filename
+      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final chapterSuffix = _selectedChapterId != null
+          ? 'chapter_${_selectedChapterId}_'
+          : '';
+      final fileName = '${widget.bookName.toLowerCase().replaceAll(' ', '_')}_${chapterSuffix}$timestamp.json';
+
+      // Convert JSON string to bytes
+      final fileBytes = utf8.encode(jsonData);
+
+      setState(() => _exportProgress = 'Saving file...');
+
+      if (kIsWeb) {
+        setState(() => _exportProgress = 'Downloading file...');
+        await _downloadFileOnWeb(fileBytes, fileName);
+      } else {
+        final filePath = await FilePicker.platform.saveFile(
+          dialogTitle: 'Save JSON export',
+          fileName: fileName,
+        );
+
+        if (filePath == null) {
+          throw Exception('File save cancelled by user');
+        }
+
+        setState(() => _exportProgress = 'Saving file...');
+
+        final file = await File(filePath).create(recursive: true);
+        await file.writeAsBytes(fileBytes);
+      }
+
+      setState(() => _exportProgress = 'Export complete!');
+
+      if (mounted) {
+        if (kIsWeb) {
+          ToastManager.showSuccess(
+            'Export complete! $getWebDownloadLocationMessage()',
+            duration: const Duration(seconds: 6),
+          );
+        } else {
+          ToastManager.showSuccess('JSON export successful!');
+        }
+        widget.onExportComplete();
+      }
+    } catch (e) {
+      throw Exception('JSON export failed: $e');
+    }
+  }
+
   Future<void> _downloadFileOnWeb(Uint8List fileBytes, String fileName) async {
-    downloadFileOnWeb(fileBytes, fileName, _getMimeType());
+    // Determine MIME type for the download
+    String mimeType = _getMimeType();
+
+    // For JSON, use application/json
+    if (_selectedFormat == 'json') {
+      mimeType = 'application/json';
+    }
+
+    downloadFileOnWeb(fileBytes, fileName, mimeType);
   }
 
   String _getMimeType() {
     switch (_selectedFormat) {
+      case 'json':
+        return 'application/json';
       case 'docx':
         return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
       case 'txt':

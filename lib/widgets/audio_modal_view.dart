@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/backend/api_requests/api_calls.dart';
@@ -107,10 +106,22 @@ class _AudioModalViewState extends State<AudioModalView> {
     );
   }
 
+  /// Convert single newlines to markdown line breaks
+  /// Markdown requires two spaces + newline or double newline for line breaks
+  String _preprocessMarkdownText(String text) {
+    // Replace single newlines with two spaces + newline (markdown line break)
+    // But preserve double newlines as paragraph breaks
+    return text.replaceAllMapped(
+      RegExp(r'(?<!\n)\n(?!\n)'),
+      (match) => '  \n',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasTranscript = widget.item.transcript != null || widget.item.rawTranscript != null;
-    final displayText = widget.item.transcript ?? widget.item.rawTranscript ?? 'No transcript available';
+    final rawText = widget.item.transcript ?? widget.item.rawTranscript ?? 'No transcript available';
+    final displayText = _preprocessMarkdownText(rawText);
     final status = widget.item.transcriptionStatus ?? 'pending';
 
     return Dialog(
