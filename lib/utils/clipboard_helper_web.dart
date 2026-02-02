@@ -37,3 +37,37 @@ Future<void> copyToClipboard(String text) async {
     textArea.remove();
   }
 }
+
+/// Copy HTML and plain text to clipboard on web platforms
+/// This is preferred for rich text applications like Adobe InDesign
+///
+/// [html] is the HTML content to copy
+/// [plainText] is the fallback plain text content
+///
+/// Uses Clipboard.write() with ClipboardItem for modern browsers,
+/// falls back to plain text if HTML is not supported
+Future<void> copyHtmlToClipboard(String html, String plainText) async {
+  // Try modern Clipboard API with ClipboardItem (Chrome, Edge, Safari 13+)
+  try {
+    final clipboard = window.navigator.clipboard;
+
+    // Create Blobs using jsify to convert Dart arrays to JS arrays
+    final htmlBlob = Blob([html].jsify() as JSArray<JSAny>, BlobPropertyBag(type: 'text/html'));
+    final textBlob = Blob([plainText].jsify() as JSArray<JSAny>, BlobPropertyBag(type: 'text/plain'));
+
+    // Create the ClipboardItem data object
+    final itemData = ({
+      'text/html': htmlBlob,
+      'text/plain': textBlob,
+    }.jsify() as JSObject);
+
+    final clipboardItem = ClipboardItem(itemData);
+    await clipboard.write([clipboardItem].jsify() as JSArray<ClipboardItem>).toDart;
+    return;
+  } catch (_) {
+    // Fall through to plain text copy
+  }
+
+  // Fallback to plain text only
+  await copyToClipboard(plainText);
+}

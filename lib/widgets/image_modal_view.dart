@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/backend/api_requests/api_calls.dart';
@@ -8,6 +7,8 @@ import '/toasts/toast_manager.dart';
 import '/models/content_item.dart';
 import '/components/modals/ocr_processing_modal.dart';
 import '/utils/clipboard_helper.dart';
+import '/utils/markdown_to_html.dart';
+import '/components/utils/formatted_text_widget.dart';
 
 
 class ImageModalView extends StatefulWidget {
@@ -51,13 +52,21 @@ class _ImageModalViewState extends State<ImageModalView> {
 
   Future<void> _copyToClipboard(String text) async {
     try {
-      // Use platform-agnostic clipboard helper
-      // Works on Web, iOS, Android, Windows, macOS, Linux
-      await copyToClipboard(text);
+      // Get the raw markdown text
+      final rawText = widget.item.ocrText ?? widget.item.rawOcrText ?? '';
+
+      // Convert markdown to HTML for rich text clipboard (better for Adobe InDesign)
+      final html = convertMarkdownToHtml(rawText);
+
+      // Get plain text version as fallback
+      final plainText = markdownToPlainText(rawText);
+
+      // Use HTML clipboard for rich text format (preserves underline, etc.)
+      await copyHtmlToClipboard(html, plainText);
 
       if (mounted) {
         setState(() => _isCopied = true);
-        ToastManager.showSuccess('Text copied to clipboard');
+        ToastManager.showSuccess('Text copied to clipboard (rich text)');
         Future.delayed(const Duration(seconds: 2), () {
           if (mounted) setState(() => _isCopied = false);
         });
@@ -126,22 +135,10 @@ class _ImageModalViewState extends State<ImageModalView> {
     );
   }
 
-  /// Convert single newlines to markdown line breaks
-  /// Markdown requires two spaces + newline or double newline for line breaks
-  String _preprocessMarkdownText(String text) {
-    // Replace single newlines with two spaces + newline (markdown line break)
-    // But preserve double newlines as paragraph breaks
-    return text.replaceAllMapped(
-      RegExp(r'(?<!\n)\n(?!\n)'),
-      (match) => '  \n',
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final hasText = widget.item.ocrText != null || widget.item.rawOcrText != null;
     final rawText = widget.item.ocrText ?? widget.item.rawOcrText ?? 'No text extracted';
-    final displayText = _preprocessMarkdownText(rawText);
     final status = widget.item.ocrStatus ?? 'pending';
 
     return Dialog(
@@ -197,7 +194,7 @@ class _ImageModalViewState extends State<ImageModalView> {
                         ),
                         onPressed: _isCopied
                             ? null
-                            : () => _copyToClipboard(displayText),
+                            : () => _copyToClipboard(rawText),
                         tooltip: 'Copy text',
                       ),
                     ),
@@ -399,27 +396,9 @@ class _ImageModalViewState extends State<ImageModalView> {
                                   ),
                                 )
                               : SingleChildScrollView(
-                                  child: MarkdownBody(
-                                    data: displayText,
+                                  child: FormattedTextWidget(
+                                    text: rawText,
                                     selectable: true,
-                                    styleSheet: MarkdownStyleSheet(
-                                      p: FlutterFlowTheme.of(context).bodyMedium.override(
-                                        fontFamily: 'Readex Pro',
-                                        fontSize: 14,
-                                      ),
-                                      h1: FlutterFlowTheme.of(context).headlineLarge,
-                                      h2: FlutterFlowTheme.of(context).headlineMedium,
-                                      h3: FlutterFlowTheme.of(context).headlineSmall,
-                                      tableHead: FlutterFlowTheme.of(context).bodyMedium.override(
-                                        fontFamily: 'Readex Pro',
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      tableBody: FlutterFlowTheme.of(context).bodyMedium,
-                                      tableBorder: TableBorder.all(
-                                        color: FlutterFlowTheme.of(context).alternate,
-                                        width: 1,
-                                      ),
-                                    ),
                                   ),
                                 ))
                           : Center(
