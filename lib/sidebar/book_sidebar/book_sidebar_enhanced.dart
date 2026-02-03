@@ -10,6 +10,7 @@ import '/backend/schema/chapter.dart';
 import '/components/modals/new_chapter_dialog.dart';
 import '/toasts/toast_manager.dart';
 import '/app_state.dart';
+import '/app_constants.dart';
 import 'package:go_router/go_router.dart';
 
 class BookSidebarEnhanced extends StatefulWidget {
@@ -1379,6 +1380,20 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
                 ),
               ),
             ),
+            const SizedBox(height: 8.0),
+            // Version
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
+              child: Text(
+                FFAppConstants.version,
+                style: FlutterFlowTheme.of(context).labelSmall.override(
+                      fontSize: 9.0,
+                      color: FlutterFlowTheme.of(context).secondaryText.withValues(alpha: 0.6),
+                      fontWeight: FontWeight.w500,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+            ),
           ],
         ),
       );
@@ -1395,11 +1410,14 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
         ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
             // Help Button
             Tooltip(
               message: 'Help & Keyboard Shortcuts',
@@ -1581,6 +1599,19 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
             ),
           ],
         ),
+          ),
+          const SizedBox(height: 8.0),
+          // Version
+          Text(
+            FFAppConstants.version,
+            style: FlutterFlowTheme.of(context).labelSmall.override(
+                  fontSize: 10.0,
+                  color: FlutterFlowTheme.of(context).secondaryText.withValues(alpha: 0.6),
+                  fontWeight: FontWeight.w500,
+                ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
