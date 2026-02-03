@@ -1,12 +1,28 @@
 /// Platform-agnostic clipboard helper
-/// Uses conditional imports to support web, mobile, and desktop
+/// Uses the clipboard package for cross-platform HTML/rich text support
 library;
 
-// Conditional import: use web implementation if dart:html is available
-// Otherwise use mobile/desktop implementation
-import 'clipboard_helper_stub.dart'
-    if (dart.library.html) 'clipboard_helper_web.dart';
+import 'package:clipboard/clipboard.dart';
 
-// Re-export the copyToClipboard function from the conditionally imported file
-export 'clipboard_helper_stub.dart' if (dart.library.html) 'clipboard_helper_web.dart';
+/// Copy text to clipboard
+Future<void> copyToClipboard(String text) async {
+  await FlutterClipboard.copy(text);
+}
+
+/// Copy HTML and plain text to clipboard with rich text formatting
+/// This is the preferred method for copying formatted text that needs to
+/// preserve formatting when pasted into applications like Adobe InDesign
+///
+/// [html] is the HTML content (with formatting like <u>, <strong>, etc.)
+/// [plainText] is the fallback plain text content
+///
+/// This works on all platforms (Web, Mac, Windows, iOS, Android, Linux)
+/// Uses FlutterClipboard.copyRichText() which provides native HTML clipboard
+/// support via platform channels and proper web implementation using ClipboardItem API
+Future<void> copyHtmlToClipboard(String html, String plainText) async {
+  await FlutterClipboard.copyRichText(
+    text: plainText,
+    html: html,
+  );
+}
 
