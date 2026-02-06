@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:clipboard/clipboard.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/backend/api_requests/api_calls.dart';
 import '/auth/custom_auth/auth_util.dart';
@@ -647,7 +646,7 @@ ${originalText.length > 500 ? originalText.substring(0, 500) + '...' : originalT
                   children: [
                     TextButton(
                       onPressed: () async {
-                        await FlutterClipboard.copy(errorDetails);
+                        await copyToClipboard(errorDetails);
                         if (context.mounted) {
                           Navigator.pop(context);
                           ToastManager.showSuccess(

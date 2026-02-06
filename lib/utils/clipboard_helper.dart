@@ -1,12 +1,14 @@
 /// Platform-agnostic clipboard helper
-/// Uses the clipboard package for cross-platform HTML/rich text support
+/// Uses super_clipboard for robust cross-platform HTML/rich text support
 library;
 
-import 'package:clipboard/clipboard.dart';
+import 'package:super_clipboard/super_clipboard.dart';
 
 /// Copy text to clipboard
 Future<void> copyToClipboard(String text) async {
-  await FlutterClipboard.copy(text);
+  final item = DataWriterItem();
+  item.add(Formats.plainText(text));
+  await SystemClipboard.instance?.write([item]);
 }
 
 /// Copy HTML and plain text to clipboard with rich text formatting
@@ -17,12 +19,18 @@ Future<void> copyToClipboard(String text) async {
 /// [plainText] is the fallback plain text content
 ///
 /// This works on all platforms (Web, Mac, Windows, iOS, Android, Linux)
-/// Uses FlutterClipboard.copyRichText() which provides native HTML clipboard
-/// support via platform channels and proper web implementation using ClipboardItem API
+/// Uses super_clipboard which provides native HTML clipboard support
+/// via Rust internals and proper web implementation using ClipboardItem API
 Future<void> copyHtmlToClipboard(String html, String plainText) async {
-  await FlutterClipboard.copyRichText(
-    text: plainText,
-    html: html,
-  );
+  final item = DataWriterItem();
+
+  // Add HTML content first (higher priority)
+  item.add(Formats.htmlText(html));
+
+  // Add plain text as fallback (required)
+  item.add(Formats.plainText(plainText));
+
+  // Write to clipboard
+  await SystemClipboard.instance?.write([item]);
 }
 
