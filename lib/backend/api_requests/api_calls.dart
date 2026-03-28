@@ -29,7 +29,7 @@ class OCRWorkbenchAPIGroup {
     //   }
     // }
     // Development: Use hardcoded backend URL
-    return 'http://localhost:8002';
+    return 'http://localhost:8000';
   }
   static Map<String, String> headers = {};
   static LoginCall loginCall = LoginCall();

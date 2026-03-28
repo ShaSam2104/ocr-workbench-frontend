@@ -645,14 +645,15 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
       focusNode: _focusNode,
       onKeyEvent: _handleKeyEvent,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
         width: sidebarWidth,
         height: MediaQuery.of(context).size.height,
         decoration: BoxDecoration(
           color: FlutterFlowTheme.of(context).secondaryBackground,
           border: Border(
             right: BorderSide(
-              color: FlutterFlowTheme.of(context).alternate,
+              color: FlutterFlowTheme.of(context).alternate.withValues(alpha: 0.6),
               width: 1,
             ),
           ),
@@ -662,7 +663,7 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
             // Collapse Button & Header
             if (!_isSidebarCollapsed)
               Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.fromLTRB(16.0, 20.0, 16.0, 16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -671,32 +672,36 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
                       children: [
                         Text(
                           'Books',
-                          style: FlutterFlowTheme.of(context).headlineSmall.override(
-                                font: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-                                fontSize: 20.0,
+                          style: FlutterFlowTheme.of(context).titleLarge.override(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 18.0,
+                                letterSpacing: -0.3,
                               ),
                         ),
                         Tooltip(
                           message: 'Collapse sidebar',
-                          child: InkWell(
-                            onTap: () => setState(() => _isSidebarCollapsed = true),
-                            borderRadius: BorderRadius.circular(6.0),
-                            child: Container(
-                              padding: const EdgeInsets.all(6.0),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(6.0),
-                              ),
-                              child: Icon(
-                                Icons.chevron_left,
-                                size: 20.0,
-                                color: FlutterFlowTheme.of(context).secondaryText,
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: GestureDetector(
+                              onTap: () => setState(() => _isSidebarCollapsed = true),
+                              child: Container(
+                                padding: const EdgeInsets.all(6.0),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8.0),
+                                  color: FlutterFlowTheme.of(context).primaryBackground.withValues(alpha: 0.6),
+                                ),
+                                child: Icon(
+                                  Icons.chevron_left_rounded,
+                                  size: 18.0,
+                                  color: FlutterFlowTheme.of(context).secondaryText,
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8.0),
+                    const SizedBox(height: 12.0),
                     Row(
                       children: [
                         Expanded(
@@ -844,14 +849,16 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
 
   Widget _buildSkeletonLoader() {
     return ListView.separated(
-      padding: const EdgeInsets.all(8.0),
+      padding: const EdgeInsets.all(12.0),
       itemCount: 5,
-      separatorBuilder: (_, __) => const SizedBox(height: 8.0),
-      itemBuilder: (_, __) => Container(
-        height: 48.0,
+      separatorBuilder: (_, __) => const SizedBox(height: 6.0),
+      itemBuilder: (_, index) => Container(
+        height: 44.0,
         decoration: BoxDecoration(
-          color: FlutterFlowTheme.of(context).primaryBackground,
-          borderRadius: BorderRadius.circular(8.0),
+          color: FlutterFlowTheme.of(context).primaryBackground.withValues(
+            alpha: 0.5 + (index * 0.1).clamp(0.0, 0.3),
+          ),
+          borderRadius: BorderRadius.circular(10.0),
         ),
       ),
     );
@@ -993,23 +1000,23 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
   }) {
     final isExpanded = _expandedBooks[item.id] ?? false;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+      margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
       decoration: BoxDecoration(
         color: isSelected
-            ? FlutterFlowTheme.of(context).primary.withValues(alpha: 0.15)
+            ? FlutterFlowTheme.of(context).primary.withValues(alpha: 0.1)
             : isFocused
-                ? FlutterFlowTheme.of(context).primaryBackground
+                ? FlutterFlowTheme.of(context).primaryBackground.withValues(alpha: 0.7)
                 : Colors.transparent,
-        borderRadius: BorderRadius.circular(8.0),
-        border: isSelected
-            ? Border(
-                left: BorderSide(
-                  color: FlutterFlowTheme.of(context).primary,
-                  width: 3.0,
-                ),
-              )
-            : null,
+        borderRadius: BorderRadius.circular(10.0),
+        border: Border.all(
+          color: isSelected
+              ? FlutterFlowTheme.of(context).primary.withValues(alpha: 0.25)
+              : Colors.transparent,
+          width: 1.0,
+        ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -1022,24 +1029,31 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
                 children: [
                   // Expand/Collapse arrow - clickable
                   if (item.isExpandable)
-                    InkWell(
-                      onTap: () {
-                        _toggleBookExpansion(item.id, null);
-                      },
-                      borderRadius: BorderRadius.circular(4.0),
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: Icon(
-                          isExpanded
-                              ? Icons.keyboard_arrow_down
-                              : Icons.keyboard_arrow_right,
-                          size: 20.0,
-                          color: FlutterFlowTheme.of(context).primaryText,
+                    MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTap: () {
+                          _toggleBookExpansion(item.id, null);
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: AnimatedRotation(
+                            turns: isExpanded ? 0.25 : 0.0,
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOutCubic,
+                            child: Icon(
+                              Icons.chevron_right_rounded,
+                              size: 18.0,
+                              color: isSelected
+                                  ? FlutterFlowTheme.of(context).primary
+                                  : FlutterFlowTheme.of(context).secondaryText,
+                            ),
+                          ),
                         ),
                       ),
                     )
                   else
-                    const SizedBox(width: 28.0),
+                    const SizedBox(width: 26.0),
                   // Book name - clickable to select
                   Expanded(
                     child: InkWell(
@@ -1109,21 +1123,17 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
     required bool isFocused,
     required bool isSelected,
   }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+      margin: const EdgeInsets.only(left: 24.0, right: 8.0, top: 1.0, bottom: 1.0),
       decoration: BoxDecoration(
         color: isSelected
-            ? FlutterFlowTheme.of(context).secondary.withValues(alpha: 0.1)
+            ? FlutterFlowTheme.of(context).primary.withValues(alpha: 0.08)
             : isFocused
-                ? FlutterFlowTheme.of(context).primaryBackground
+                ? FlutterFlowTheme.of(context).primaryBackground.withValues(alpha: 0.5)
                 : Colors.transparent,
         borderRadius: BorderRadius.circular(8.0),
-        border: Border.all(
-          color: isFocused
-              ? FlutterFlowTheme.of(context).secondary
-              : Colors.transparent,
-          width: 1.5,
-        ),
       ),
       child: InkWell(
         onTap: () {
@@ -1137,38 +1147,43 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
         },
         highlightColor: Colors.transparent,
         splashColor: Colors.transparent,
+        borderRadius: BorderRadius.circular(8.0),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+          padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: Icon(
-                      Icons.description,
-                      size: 16.0,
-                      color: FlutterFlowTheme.of(context).secondaryText,
+                  Container(
+                    width: 4.0,
+                    height: 4.0,
+                    margin: const EdgeInsets.only(right: 10.0),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isSelected
+                          ? FlutterFlowTheme.of(context).primary
+                          : FlutterFlowTheme.of(context).secondaryText.withValues(alpha: 0.4),
                     ),
                   ),
                   Expanded(
                     child: Text(
                       item.name,
                       style: FlutterFlowTheme.of(context).labelMedium.override(
-                            font: GoogleFonts.outfit(
-                              fontWeight: isSelected
-                                  ? FontWeight.w600
-                                  : FontWeight.w500,
-                            ),
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w400,
                             fontSize: 13.0,
+                            color: isSelected
+                                ? FlutterFlowTheme.of(context).primaryText
+                                : FlutterFlowTheme.of(context).secondaryText,
                           ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 16.0),
-                    color: FlutterFlowTheme.of(context).error,
+                    icon: const Icon(Icons.delete_outline_rounded, size: 14.0),
+                    color: FlutterFlowTheme.of(context).secondaryText.withValues(alpha: 0.5),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                     onPressed: () => _deleteChapter(item.id, item.name, item.bookId!),
@@ -1196,7 +1211,7 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
             color: FlutterFlowTheme.of(context).primaryBackground,
             borderRadius: BorderRadius.circular(6.0),
             border: Border.all(
-              color: FlutterFlowTheme.of(context).alternate.withOpacity(0.5),
+              color: FlutterFlowTheme.of(context).alternate.withValues(alpha: 0.5),
               width: 1.0,
             ),
           ),

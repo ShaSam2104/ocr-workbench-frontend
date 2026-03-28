@@ -61,34 +61,55 @@ class _ConfirmDialogState extends State<ConfirmDialog> {
       focusNode: _dialogFocusNode,
       onKey: _handleKeyEvent,
       child: Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         insetPadding: EdgeInsets.all(isMobile ? 16 : 32),
         child: Container(
           width: isMobile ? double.infinity : 400,
           decoration: BoxDecoration(
             color: theme.primaryBackground,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: theme.alternate.withValues(alpha: 0.5),
+              width: 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 32,
+                offset: const Offset(0, 12),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               // Title
-              Container(
-                padding: const EdgeInsets.all(16),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
                 child: Text(
                   widget.title,
-                  style: theme.headlineSmall.copyWith(
-                    fontWeight: FontWeight.bold,
+                  style: theme.titleMedium.override(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
                   ),
                   textAlign: TextAlign.center,
                 ),
               ),
               // Message
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Text(
                   widget.message,
-                  style: theme.bodyMedium.copyWith(
+                  style: theme.bodyMedium.override(
                     color: theme.secondaryText,
+                    fontSize: 13.0,
+                    lineHeight: 1.5,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -96,9 +117,8 @@ class _ConfirmDialogState extends State<ConfirmDialog> {
               const SizedBox(height: 24),
               // Buttons
               Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
                       child: Focus(
@@ -113,16 +133,28 @@ class _ConfirmDialogState extends State<ConfirmDialog> {
                         },
                         child: TextButton(
                           onPressed: _handleCancel,
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12.0),
+                            backgroundColor: theme.secondaryBackground,
+                            foregroundColor: theme.primaryText,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10.0),
+                              side: BorderSide(
+                                color: theme.alternate.withValues(alpha: 0.5),
+                              ),
+                            ),
+                          ),
                           child: Text(
                             widget.cancelText,
-                            style: theme.bodyMedium.copyWith(
+                            style: theme.bodyMedium.override(
                               fontWeight: FontWeight.w600,
+                              fontSize: 13.0,
                             ),
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Focus(
                         focusNode: _confirmFocusNode,
@@ -137,15 +169,21 @@ class _ConfirmDialogState extends State<ConfirmDialog> {
                         child: ElevatedButton(
                           onPressed: _handleConfirm,
                           style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12.0),
                             backgroundColor:
                                 widget.confirmButtonColor ?? theme.error,
                             foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10.0),
+                            ),
                           ),
                           child: Text(
                             widget.confirmText,
-                            style: theme.bodyMedium.copyWith(
+                            style: theme.bodyMedium.override(
                               fontWeight: FontWeight.w600,
                               color: Colors.white,
+                              fontSize: 13.0,
                             ),
                           ),
                         ),
@@ -162,9 +200,9 @@ class _ConfirmDialogState extends State<ConfirmDialog> {
                   bottom: 12,
                 ),
                 child: Text(
-                  'Tab to navigate  Enter to confirm  Esc to cancel',
-                  style: theme.bodySmall.copyWith(
-                    color: theme.secondaryText,
+                  'Tab to navigate  ·  Enter to confirm  ·  Esc to cancel',
+                  style: theme.bodySmall.override(
+                    color: theme.secondaryText.withValues(alpha: 0.6),
                     fontSize: 10,
                   ),
                   textAlign: TextAlign.center,

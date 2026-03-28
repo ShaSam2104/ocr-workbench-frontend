@@ -1279,25 +1279,18 @@ class _ContentAreaState extends State<ContentArea> with TickerProviderStateMixin
     required bool isSelected,
     required VoidCallback onPressed,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(8.0),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
           decoration: BoxDecoration(
             color: isSelected
-                ? FlutterFlowTheme.of(context).primary.withValues(alpha: 0.15)
+                ? FlutterFlowTheme.of(context).primary.withValues(alpha: 0.1)
                 : Colors.transparent,
-            border: Border(
-              bottom: BorderSide(
-                color: isSelected
-                    ? FlutterFlowTheme.of(context).primary
-                    : Colors.transparent,
-                width: 2,
-              ),
-            ),
             borderRadius: BorderRadius.circular(8.0),
           ),
           child: Row(
@@ -1305,21 +1298,44 @@ class _ContentAreaState extends State<ContentArea> with TickerProviderStateMixin
             children: [
               Icon(
                 icon,
-                size: 20,
+                size: 18,
                 color: isSelected
                     ? FlutterFlowTheme.of(context).primary
                     : FlutterFlowTheme.of(context).secondaryText,
               ),
               SizedBox(width: 8),
               Text(
-                '$label ($count)',
+                label,
                 style: FlutterFlowTheme.of(context).bodyMedium.override(
                       color: isSelected
                           ? FlutterFlowTheme.of(context).primary
                           : FlutterFlowTheme.of(context).secondaryText,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                      fontSize: 13.0,
                     ),
               ),
+              if (count > 0) ...[
+                SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 1.0),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? FlutterFlowTheme.of(context).primary.withValues(alpha: 0.15)
+                        : FlutterFlowTheme.of(context).secondaryText.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: FlutterFlowTheme.of(context).labelSmall.override(
+                          color: isSelected
+                              ? FlutterFlowTheme.of(context).primary
+                              : FlutterFlowTheme.of(context).secondaryText,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11.0,
+                        ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -1347,27 +1363,40 @@ class _ContentAreaState extends State<ContentArea> with TickerProviderStateMixin
   }
 
   Widget _buildEmptyState() {
+    final isImages = _selectedTab == 0;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.image_not_supported,
-            size: 64.0,
-            color: FlutterFlowTheme.of(context).secondaryText,
+          Container(
+            width: 64.0,
+            height: 64.0,
+            decoration: BoxDecoration(
+              color: FlutterFlowTheme.of(context).secondaryText.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(16.0),
+            ),
+            child: Icon(
+              isImages ? Icons.image_outlined : Icons.audio_file_outlined,
+              size: 28.0,
+              color: FlutterFlowTheme.of(context).secondaryText.withValues(alpha: 0.5),
+            ),
           ),
-          const SizedBox(height: 16.0),
+          const SizedBox(height: 20.0),
           Text(
-            'No content in this chapter',
-            style: FlutterFlowTheme.of(context).bodyLarge.override(
+            isImages ? 'No images yet' : 'No audio files yet',
+            style: FlutterFlowTheme.of(context).titleSmall.override(
                   fontWeight: FontWeight.w600,
+                  letterSpacing: -0.2,
                 ),
           ),
-          const SizedBox(height: 8.0),
+          const SizedBox(height: 6.0),
           Text(
-            'Upload images or audio files to get started',
+            isImages
+                ? 'Upload images to start OCR processing'
+                : 'Upload audio files to start transcription',
             style: FlutterFlowTheme.of(context).bodyMedium.override(
                   color: FlutterFlowTheme.of(context).secondaryText,
+                  fontSize: 13.0,
                 ),
           ),
         ],
@@ -1417,7 +1446,9 @@ class _ContentAreaState extends State<ContentArea> with TickerProviderStateMixin
           _showItemDetail(index);
         }
       },
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
         decoration: BoxDecoration(
           color: FlutterFlowTheme.of(context).secondaryBackground,
           borderRadius: BorderRadius.circular(12.0),
@@ -1425,18 +1456,23 @@ class _ContentAreaState extends State<ContentArea> with TickerProviderStateMixin
             color: isFocused
                 ? FlutterFlowTheme.of(context).primary
                 : isSelected
-                    ? FlutterFlowTheme.of(context).primary
-                    : FlutterFlowTheme.of(context).alternate.withValues(alpha: 0.3),
-            width: isFocused ? 2.5 : (isSelected ? 2.0 : 1.0),
+                    ? FlutterFlowTheme.of(context).primary.withValues(alpha: 0.6)
+                    : FlutterFlowTheme.of(context).alternate.withValues(alpha: 0.4),
+            width: isFocused ? 2.0 : (isSelected ? 1.5 : 1.0),
           ),
           boxShadow: [
-            BoxShadow(
-              color: isSelected
-                  ? FlutterFlowTheme.of(context).primary.withValues(alpha: 0.15)
-                  : Colors.black.withValues(alpha: 0.04),
-              blurRadius: isSelected ? 12.0 : 8.0,
-              offset: Offset(0, isSelected ? 4.0 : 2.0),
-            ),
+            if (isSelected || isFocused)
+              BoxShadow(
+                color: FlutterFlowTheme.of(context).primary.withValues(alpha: 0.1),
+                blurRadius: 16.0,
+                offset: const Offset(0, 4.0),
+              )
+            else
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 6.0,
+                offset: const Offset(0, 2.0),
+              ),
           ],
         ),
         child: Column(
@@ -1507,21 +1543,21 @@ class _ContentAreaState extends State<ContentArea> with TickerProviderStateMixin
                   ),
                   // Sequence badge overlay (top-left)
                   Positioned(
-                    top: 10.0,
-                    left: 10.0,
+                    top: 8.0,
+                    left: 8.0,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 3.0),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.75),
+                        color: Colors.black.withValues(alpha: 0.6),
                         borderRadius: BorderRadius.circular(6.0),
                       ),
                       child: Text(
                         '#${item.sequence}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 12.0,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
+                          fontSize: 11.0,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.3,
                         ),
                       ),
                     ),

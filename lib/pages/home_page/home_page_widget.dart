@@ -225,41 +225,47 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          // Book icon
+                                          // Refined icon container
                                           Container(
-                                            width: 80.0,
-                                            height: 80.0,
+                                            width: 72.0,
+                                            height: 72.0,
                                             decoration: BoxDecoration(
                                               color: FlutterFlowTheme.of(context)
-                                                  .accent1
-                                                  .withOpacity(0.1),
+                                                  .primary
+                                                  .withValues(alpha: 0.08),
                                               borderRadius:
                                                   BorderRadius.circular(20.0),
+                                              border: Border.all(
+                                                color: FlutterFlowTheme.of(context)
+                                                    .primary
+                                                    .withValues(alpha: 0.12),
+                                                width: 1.0,
+                                              ),
                                             ),
                                             child: Icon(
-                                              Icons.auto_stories_outlined,
-                                              size: 40.0,
+                                              Icons.auto_stories_rounded,
+                                              size: 32.0,
                                               color: FlutterFlowTheme.of(context)
                                                   .primary
-                                                  .withOpacity(0.6),
+                                                  .withValues(alpha: 0.7),
                                             ),
                                           ),
-                                          SizedBox(height: 24.0),
+                                          SizedBox(height: 28.0),
                                           // Title
                                           Text(
-                                            'Your workspace is empty',
+                                            'Select a book to begin',
                                             style: FlutterFlowTheme.of(context)
-                                                .headlineMedium
+                                                .titleLarge
                                                 .override(
-                                                  fontSize: 22.0,
+                                                  fontSize: 20.0,
                                                   fontWeight: FontWeight.w600,
-                                                  letterSpacing: -0.5,
+                                                  letterSpacing: -0.4,
                                                 ),
                                           ),
-                                          SizedBox(height: 12.0),
+                                          SizedBox(height: 8.0),
                                           // Subtitle
                                           Text(
-                                            'Select a book from the sidebar to get started',
+                                            'Choose from the sidebar or create a new one',
                                             style: FlutterFlowTheme.of(context)
                                                 .bodyMedium
                                                 .override(
@@ -269,11 +275,11 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                                                           .secondaryText,
                                                 ),
                                           ),
-                                          SizedBox(height: 24.0),
-                                          // Keyboard shortcut hint
+                                          SizedBox(height: 28.0),
+                                          // Keyboard shortcut hint — refined kbd style
                                           Container(
                                             padding: EdgeInsets.symmetric(
-                                              horizontal: 16.0,
+                                              horizontal: 14.0,
                                               vertical: 10.0,
                                             ),
                                             decoration: BoxDecoration(
@@ -281,11 +287,12 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                                                   FlutterFlowTheme.of(context)
                                                       .secondaryBackground,
                                               borderRadius:
-                                                  BorderRadius.circular(8.0),
+                                                  BorderRadius.circular(10.0),
                                               border: Border.all(
                                                 color:
                                                     FlutterFlowTheme.of(context)
-                                                        .alternate,
+                                                        .alternate
+                                                        .withValues(alpha: 0.6),
                                                 width: 1.0,
                                               ),
                                             ),
@@ -293,8 +300,8 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 Icon(
-                                                  Icons.search,
-                                                  size: 16.0,
+                                                  Icons.search_rounded,
+                                                  size: 15.0,
                                                   color:
                                                       FlutterFlowTheme.of(context)
                                                           .secondaryText,
@@ -306,7 +313,7 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                                                       FlutterFlowTheme.of(context)
                                                           .bodySmall
                                                           .override(
-                                                            fontSize: 13.0,
+                                                            fontSize: 12.0,
                                                             color: FlutterFlowTheme
                                                                     .of(context)
                                                                 .secondaryText,
@@ -323,13 +330,20 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                                                         .primaryBackground,
                                                     borderRadius:
                                                         BorderRadius.circular(
-                                                            4.0),
+                                                            5.0),
                                                     border: Border.all(
                                                       color: FlutterFlowTheme
                                                               .of(context)
                                                           .alternate,
                                                       width: 1.0,
                                                     ),
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: Colors.black.withValues(alpha: 0.04),
+                                                        blurRadius: 0,
+                                                        offset: const Offset(0, 1),
+                                                      ),
+                                                    ],
                                                   ),
                                                   child: Text(
                                                     _modifierKey,
@@ -343,23 +357,24 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                                                         ),
                                                   ),
                                                 ),
-                                                SizedBox(width: 4.0),
-                                                Text(
-                                                  '+',
-                                                  style:
-                                                      FlutterFlowTheme.of(context)
-                                                          .bodySmall
-                                                          .override(
-                                                            fontSize: 13.0,
-                                                            color: FlutterFlowTheme
-                                                                    .of(context)
-                                                                .secondaryText,
-                                                          ),
+                                                Padding(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                                                  child: Text(
+                                                    '+',
+                                                    style:
+                                                        FlutterFlowTheme.of(context)
+                                                            .bodySmall
+                                                            .override(
+                                                              fontSize: 12.0,
+                                                              color: FlutterFlowTheme
+                                                                      .of(context)
+                                                                  .secondaryText,
+                                                            ),
+                                                  ),
                                                 ),
-                                                SizedBox(width: 4.0),
                                                 Container(
                                                   padding: EdgeInsets.symmetric(
-                                                    horizontal: 6.0,
+                                                    horizontal: 7.0,
                                                     vertical: 2.0,
                                                   ),
                                                   decoration: BoxDecoration(
@@ -368,13 +383,20 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                                                         .primaryBackground,
                                                     borderRadius:
                                                         BorderRadius.circular(
-                                                            4.0),
+                                                            5.0),
                                                     border: Border.all(
                                                       color: FlutterFlowTheme
                                                               .of(context)
                                                           .alternate,
                                                       width: 1.0,
                                                     ),
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: Colors.black.withValues(alpha: 0.04),
+                                                        blurRadius: 0,
+                                                        offset: const Offset(0, 1),
+                                                      ),
+                                                    ],
                                                   ),
                                                   child: Text(
                                                     'K',
@@ -395,7 +417,7 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                                                       FlutterFlowTheme.of(context)
                                                           .bodySmall
                                                           .override(
-                                                            fontSize: 13.0,
+                                                            fontSize: 12.0,
                                                             color: FlutterFlowTheme
                                                                     .of(context)
                                                                 .secondaryText,

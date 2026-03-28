@@ -143,16 +143,21 @@ class _NewBookDialogState extends State<NewBookDialog> with SingleTickerProvider
             width: 520,
             decoration: BoxDecoration(
               color: FlutterFlowTheme.of(context).primaryBackground,
-              borderRadius: BorderRadius.circular(8.0),
+              borderRadius: BorderRadius.circular(14.0),
               border: Border.all(
-                color: FlutterFlowTheme.of(context).alternate.withOpacity(0.3),
+                color: FlutterFlowTheme.of(context).alternate.withValues(alpha: 0.5),
                 width: 1.0,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 32,
+                  offset: const Offset(0, 12),
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
@@ -179,7 +184,7 @@ class _NewBookDialogState extends State<NewBookDialog> with SingleTickerProvider
                       ),
                       InkWell(
                         onTap: _isCreating ? null : () => Navigator.of(context).pop(),
-                        borderRadius: BorderRadius.circular(4.0),
+                        borderRadius: BorderRadius.circular(8.0),
                         child: Padding(
                           padding: const EdgeInsets.all(4.0),
                           child: Icon(
@@ -196,7 +201,7 @@ class _NewBookDialogState extends State<NewBookDialog> with SingleTickerProvider
                 Divider(
                   height: 1.0,
                   thickness: 1.0,
-                  color: FlutterFlowTheme.of(context).alternate.withOpacity(0.3),
+                  color: FlutterFlowTheme.of(context).alternate.withValues(alpha: 0.4),
                 ),
                 
                 // Body
@@ -234,30 +239,30 @@ class _NewBookDialogState extends State<NewBookDialog> with SingleTickerProvider
                                     fontSize: 14.0,
                                     color: FlutterFlowTheme.of(context)
                                         .secondaryText
-                                        .withOpacity(0.4),
+                                        .withValues(alpha:0.4),
                                   ),
                           filled: true,
                           fillColor: FlutterFlowTheme.of(context).secondaryBackground,
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(4.0),
+                            borderRadius: BorderRadius.circular(8.0),
                             borderSide: BorderSide(
                               color: _hasNameError
                                   ? FlutterFlowTheme.of(context).error
-                                  : FlutterFlowTheme.of(context).alternate.withOpacity(0.5),
+                                  : FlutterFlowTheme.of(context).alternate.withValues(alpha:0.5),
                               width: 1.0,
                             ),
                           ),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(4.0),
+                            borderRadius: BorderRadius.circular(8.0),
                             borderSide: BorderSide(
                               color: _hasNameError
                                   ? FlutterFlowTheme.of(context).error
-                                  : FlutterFlowTheme.of(context).alternate.withOpacity(0.5),
+                                  : FlutterFlowTheme.of(context).alternate.withValues(alpha:0.5),
                               width: 1.0,
                             ),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(4.0),
+                            borderRadius: BorderRadius.circular(8.0),
                             borderSide: BorderSide(
                               color: _hasNameError
                                   ? FlutterFlowTheme.of(context).error
@@ -315,27 +320,27 @@ class _NewBookDialogState extends State<NewBookDialog> with SingleTickerProvider
                                     fontSize: 14.0,
                                     color: FlutterFlowTheme.of(context)
                                         .secondaryText
-                                        .withOpacity(0.4),
+                                        .withValues(alpha:0.4),
                                   ),
                           filled: true,
                           fillColor:
                               FlutterFlowTheme.of(context).secondaryBackground,
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(4.0),
+                            borderRadius: BorderRadius.circular(8.0),
                             borderSide: BorderSide(
-                              color: FlutterFlowTheme.of(context).alternate.withOpacity(0.5),
+                              color: FlutterFlowTheme.of(context).alternate.withValues(alpha:0.5),
                               width: 1.0,
                             ),
                           ),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(4.0),
+                            borderRadius: BorderRadius.circular(8.0),
                             borderSide: BorderSide(
-                              color: FlutterFlowTheme.of(context).alternate.withOpacity(0.5),
+                              color: FlutterFlowTheme.of(context).alternate.withValues(alpha:0.5),
                               width: 1.0,
                             ),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(4.0),
+                            borderRadius: BorderRadius.circular(8.0),
                             borderSide: BorderSide(
                               color: FlutterFlowTheme.of(context).primary,
                               width: 1.5,
@@ -372,21 +377,21 @@ class _NewBookDialogState extends State<NewBookDialog> with SingleTickerProvider
                                 _selectedLanguages[language] = !isSelected;
                               });
                             },
-                            borderRadius: BorderRadius.circular(4.0),
+                            borderRadius: BorderRadius.circular(8.0),
                             child: Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 12.0, vertical: 6.0),
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? FlutterFlowTheme.of(context).primary.withOpacity(0.1)
+                                    ? FlutterFlowTheme.of(context).primary.withValues(alpha:0.1)
                                     : FlutterFlowTheme.of(context).secondaryBackground,
                                 border: Border.all(
                                   color: isSelected
                                       ? FlutterFlowTheme.of(context).primary
-                                      : FlutterFlowTheme.of(context).alternate.withOpacity(0.5),
+                                      : FlutterFlowTheme.of(context).alternate.withValues(alpha:0.5),
                                   width: isSelected ? 1.5 : 1.0,
                                 ),
-                                borderRadius: BorderRadius.circular(4.0),
+                                borderRadius: BorderRadius.circular(8.0),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -429,12 +434,12 @@ class _NewBookDialogState extends State<NewBookDialog> with SingleTickerProvider
                             decoration: BoxDecoration(
                               color: FlutterFlowTheme.of(context)
                                   .error
-                                  .withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(4.0),
+                                  .withValues(alpha:0.08),
+                              borderRadius: BorderRadius.circular(8.0),
                               border: Border.all(
                                 color: FlutterFlowTheme.of(context)
                                     .error
-                                    .withOpacity(0.2),
+                                    .withValues(alpha:0.2),
                                 width: 1.0,
                               ),
                             ),
@@ -477,7 +482,7 @@ class _NewBookDialogState extends State<NewBookDialog> with SingleTickerProvider
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 16.0, vertical: 8.0),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(4.0),
+                                borderRadius: BorderRadius.circular(8.0),
                               ),
                             ),
                             child: Text(
@@ -500,10 +505,10 @@ class _NewBookDialogState extends State<NewBookDialog> with SingleTickerProvider
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 16.0, vertical: 8.0),
                               backgroundColor: _nameController.text.trim().isEmpty || _isCreating
-                                  ? FlutterFlowTheme.of(context).alternate.withOpacity(0.5)
+                                  ? FlutterFlowTheme.of(context).alternate.withValues(alpha:0.5)
                                   : FlutterFlowTheme.of(context).primary,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(4.0),
+                                borderRadius: BorderRadius.circular(8.0),
                               ),
                             ),
                             child: _isCreating

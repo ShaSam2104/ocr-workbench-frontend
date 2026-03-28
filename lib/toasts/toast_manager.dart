@@ -227,48 +227,53 @@ class _ToastContent extends StatelessWidget {
     required this.onDismiss,
   });
 
-  Color _getBackgroundColor() {
+  // Theme-aware color getters for premium look
+  Color _getBackgroundColor(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return switch (type) {
-      ToastType.success => const Color(0xFFDFF2D8),
-      ToastType.error => const Color(0xFFF2DEDE),
-      ToastType.info => const Color(0xFFD1ECF1),
-      ToastType.warning => const Color(0xFFFCF8E3),
+      ToastType.success => isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5),
+      ToastType.error => isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEF2F2),
+      ToastType.info => isDark ? const Color(0xFF0C4A6E) : const Color(0xFFEFF6FF),
+      ToastType.warning => isDark ? const Color(0xFF78350F) : const Color(0xFFFFFBEB),
     };
   }
 
-  Color _getBorderColor() {
+  Color _getBorderColor(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return switch (type) {
-      ToastType.success => const Color(0xFFD6E9C6),
-      ToastType.error => const Color(0xFFEBCCCC),
-      ToastType.info => const Color(0xFFBCE8F1),
-      ToastType.warning => const Color(0xFFFBEED5),
+      ToastType.success => isDark ? const Color(0xFF065F46) : const Color(0xFFD1FAE5),
+      ToastType.error => isDark ? const Color(0xFF991B1B) : const Color(0xFFFEE2E2),
+      ToastType.info => isDark ? const Color(0xFF0E7490) : const Color(0xFFDBEAFE),
+      ToastType.warning => isDark ? const Color(0xFF92400E) : const Color(0xFFFEF3C7),
     };
   }
 
-  Color _getIconColor() {
+  Color _getAccentColor(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return switch (type) {
-      ToastType.success => const Color(0xFF3C763D),
-      ToastType.error => const Color(0xFF8B3A3A),
-      ToastType.info => const Color(0xFF31708F),
-      ToastType.warning => const Color(0xFF8A6D3B),
+      ToastType.success => isDark ? const Color(0xFF34D399) : const Color(0xFF059669),
+      ToastType.error => isDark ? const Color(0xFFF87171) : const Color(0xFFDC2626),
+      ToastType.info => isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
+      ToastType.warning => isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706),
     };
   }
 
-  Color _getTextColor() {
+  Color _getTextColor(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return switch (type) {
-      ToastType.success => const Color(0xFF3C763D),
-      ToastType.error => const Color(0xFF8B3A3A),
-      ToastType.info => const Color(0xFF31708F),
-      ToastType.warning => const Color(0xFF8A6D3B),
+      ToastType.success => isDark ? const Color(0xFFA7F3D0) : const Color(0xFF065F46),
+      ToastType.error => isDark ? const Color(0xFFFECACA) : const Color(0xFF991B1B),
+      ToastType.info => isDark ? const Color(0xFFBAE6FD) : const Color(0xFF1E40AF),
+      ToastType.warning => isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E),
     };
   }
 
   IconData _getIconData() {
     return switch (type) {
-      ToastType.success => Icons.check_circle,
-      ToastType.error => Icons.error,
-      ToastType.info => Icons.info,
-      ToastType.warning => Icons.warning,
+      ToastType.success => Icons.check_circle_rounded,
+      ToastType.error => Icons.error_rounded,
+      ToastType.info => Icons.info_rounded,
+      ToastType.warning => Icons.warning_rounded,
     };
   }
 
@@ -283,76 +288,120 @@ class _ToastContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accentColor = _getAccentColor(context);
+    final textColor = _getTextColor(context);
+
     return Container(
-      constraints: BoxConstraints(
-        maxWidth: 400,
-        minWidth: 300,
+      constraints: const BoxConstraints(
+        maxWidth: 420,
+        minWidth: 320,
       ),
       decoration: BoxDecoration(
-        color: _getBackgroundColor(),
-        borderRadius: BorderRadius.circular(8),
+        color: _getBackgroundColor(context),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: _getBorderColor(),
+          color: _getBorderColor(context),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
+            color: accentColor.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Icon
-            Icon(
-              _getIconData(),
-              color: _getIconColor(),
-              size: 20,
+            // Color accent bar
+            Container(
+              width: 4,
+              constraints: const BoxConstraints(minHeight: 56),
+              color: accentColor,
             ),
-            const SizedBox(width: 12),
-            // Content
             Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _getTitle(),
-                    style: TextStyle(
-                      color: _getTextColor(),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      decoration: TextDecoration.none,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Row(
+                  children: [
+                    // Icon with subtle background
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: accentColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        _getIconData(),
+                        color: accentColor,
+                        size: 18,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    message,
-                    style: TextStyle(
-                      color: _getTextColor().withValues(alpha: 0.9),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      decoration: TextDecoration.none,
+                    const SizedBox(width: 12),
+                    // Content
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _getTitle(),
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.2,
+                              decoration: TextDecoration.none,
+                              height: 1.3,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            message,
+                            style: TextStyle(
+                              color: textColor.withValues(alpha: 0.8),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w400,
+                              decoration: TextDecoration.none,
+                              height: 1.4,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Close button
-            GestureDetector(
-              onTap: onDismiss,
-              child: Icon(
-                Icons.close,
-                color: _getIconColor().withValues(alpha: 0.6),
-                size: 18,
+                    const SizedBox(width: 8),
+                    // Close button
+                    MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTap: onDismiss,
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Icon(
+                            Icons.close_rounded,
+                            color: textColor.withValues(alpha: 0.5),
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

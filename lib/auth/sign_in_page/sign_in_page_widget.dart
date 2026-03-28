@@ -228,8 +228,8 @@ class _SignInPageWidgetState extends State<SignInPageWidget>
                                   borderRadius: BorderRadius.only(
                                     bottomLeft: Radius.circular(0.0),
                                     bottomRight: Radius.circular(0.0),
-                                    topLeft: Radius.circular(60.0),
-                                    topRight: Radius.circular(60.0),
+                                    topLeft: Radius.circular(32.0),
+                                    topRight: Radius.circular(32.0),
                                   ),
                                 ),
                                 child: Align(
@@ -693,8 +693,8 @@ class _SignInPageWidgetState extends State<SignInPageWidget>
                                                       color:
                                                           FlutterFlowTheme.of(
                                                                   context)
-                                                              .secondaryText,
-                                                      width: 0.5,
+                                                              .alternate,
+                                                      width: 1.0,
                                                     ),
                                                     borderRadius:
                                                         BorderRadius.circular(
@@ -706,8 +706,8 @@ class _SignInPageWidgetState extends State<SignInPageWidget>
                                                       color:
                                                           FlutterFlowTheme.of(
                                                                   context)
-                                                              .secondaryText,
-                                                      width: 0.5,
+                                                              .primary,
+                                                      width: 1.5,
                                                     ),
                                                     borderRadius:
                                                         BorderRadius.circular(
@@ -720,7 +720,7 @@ class _SignInPageWidgetState extends State<SignInPageWidget>
                                                           FlutterFlowTheme.of(
                                                                   context)
                                                               .error,
-                                                      width: 0.5,
+                                                      width: 1.0,
                                                     ),
                                                     borderRadius:
                                                         BorderRadius.circular(
@@ -733,14 +733,14 @@ class _SignInPageWidgetState extends State<SignInPageWidget>
                                                           FlutterFlowTheme.of(
                                                                   context)
                                                               .error,
-                                                      width: 0.5,
+                                                      width: 1.5,
                                                     ),
                                                     borderRadius:
                                                         BorderRadius.circular(
                                                             12.0),
                                                   ),
                                                   filled: true,
-                                                  fillColor: Color(0x17171707),
+                                                  fillColor: FlutterFlowTheme.of(context).secondaryBackground,
                                                   contentPadding:
                                                       EdgeInsetsDirectional
                                                           .fromSTEB(10.0, 0.0,
@@ -907,8 +907,8 @@ class _SignInPageWidgetState extends State<SignInPageWidget>
                                                       color:
                                                           FlutterFlowTheme.of(
                                                                   context)
-                                                              .secondaryText,
-                                                      width: 0.5,
+                                                              .alternate,
+                                                      width: 1.0,
                                                     ),
                                                     borderRadius:
                                                         BorderRadius.circular(
@@ -921,7 +921,7 @@ class _SignInPageWidgetState extends State<SignInPageWidget>
                                                           FlutterFlowTheme.of(
                                                                   context)
                                                               .primary,
-                                                      width: 0.5,
+                                                      width: 1.5,
                                                     ),
                                                     borderRadius:
                                                         BorderRadius.circular(
@@ -934,7 +934,7 @@ class _SignInPageWidgetState extends State<SignInPageWidget>
                                                           FlutterFlowTheme.of(
                                                                   context)
                                                               .error,
-                                                      width: 0.5,
+                                                      width: 1.0,
                                                     ),
                                                     borderRadius:
                                                         BorderRadius.circular(
@@ -947,14 +947,14 @@ class _SignInPageWidgetState extends State<SignInPageWidget>
                                                           FlutterFlowTheme.of(
                                                                   context)
                                                               .error,
-                                                      width: 0.5,
+                                                      width: 1.5,
                                                     ),
                                                     borderRadius:
                                                         BorderRadius.circular(
                                                             12.0),
                                                   ),
                                                   filled: true,
-                                                  fillColor: Color(0x17171707),
+                                                  fillColor: FlutterFlowTheme.of(context).secondaryBackground,
                                                   suffixIcon: InkWell(
                                                     onTap: () async {
                                                       safeSetState(() => _model
@@ -1084,7 +1084,7 @@ class _SignInPageWidgetState extends State<SignInPageWidget>
                                               text: 'Sign in',
                                               options: FFButtonOptions(
                                                 width: double.infinity,
-                                                height: 44.0,
+                                                height: 48.0,
                                                 padding: EdgeInsetsDirectional
                                                     .fromSTEB(
                                                         0.0, 0.0, 0.0, 0.0),
@@ -1099,38 +1099,15 @@ class _SignInPageWidgetState extends State<SignInPageWidget>
                                                     FlutterFlowTheme.of(context)
                                                         .titleSmall
                                                         .override(
-                                                          font: GoogleFonts
-                                                              .interTight(
-                                                            fontWeight:
-                                                                FlutterFlowTheme.of(
-                                                                        context)
-                                                                    .titleSmall
-                                                                    .fontWeight,
-                                                            fontStyle:
-                                                                FlutterFlowTheme.of(
-                                                                        context)
-                                                                    .titleSmall
-                                                                    .fontStyle,
-                                                          ),
-                                                          color: FlutterFlowTheme
-                                                                  .of(context)
-                                                              .primaryText,
-                                                          letterSpacing: 0.0,
-                                                          fontWeight:
-                                                              FlutterFlowTheme.of(
-                                                                      context)
-                                                                  .titleSmall
-                                                                  .fontWeight,
-                                                          fontStyle:
-                                                              FlutterFlowTheme.of(
-                                                                      context)
-                                                                  .titleSmall
-                                                                  .fontStyle,
+                                                          color: Colors.white,
+                                                          fontSize: 15.0,
+                                                          fontWeight: FontWeight.w600,
+                                                          letterSpacing: -0.2,
                                                         ),
-                                                elevation: 3.0,
+                                                elevation: 0.0,
                                                 borderSide: BorderSide(
                                                   color: Colors.transparent,
-                                                  width: 1.0,
+                                                  width: 0.0,
                                                 ),
                                                 borderRadius:
                                                     BorderRadius.circular(12.0),
@@ -1164,14 +1141,14 @@ class _SignInPageWidgetState extends State<SignInPageWidget>
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                FlutterFlowTheme.of(context).secondary,
                                 FlutterFlowTheme.of(context).primary,
+                                FlutterFlowTheme.of(context).secondary,
                               ],
                               stops: [0.0, 1.0],
-                              begin: AlignmentDirectional(1.0, -1.0),
-                              end: AlignmentDirectional(-1.0, 1.0),
+                              begin: AlignmentDirectional(-0.5, -1.0),
+                              end: AlignmentDirectional(0.5, 1.0),
                             ),
-                            borderRadius: BorderRadius.circular(16.0),
+                            borderRadius: BorderRadius.circular(20.0),
                           ),
                           child: Padding(
                             padding: EdgeInsets.all(24.0),

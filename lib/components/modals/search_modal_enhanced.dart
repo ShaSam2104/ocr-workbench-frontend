@@ -119,16 +119,21 @@ class _SearchModalEnhancedState extends State<SearchModalEnhanced> {
                   margin: EdgeInsets.all(isMobile ? 16 : 40),
                   decoration: BoxDecoration(
                     color: theme.secondaryBackground,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: theme.alternate,
+                      color: theme.alternate.withValues(alpha: 0.5),
                       width: 1,
                     ),
                     boxShadow: [
                       BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 24,
-                        offset: const Offset(0, 12),
+                        color: Colors.black.withValues(alpha: 0.12),
+                        blurRadius: 40,
+                        offset: const Offset(0, 16),
+                      ),
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
@@ -150,22 +155,29 @@ class _SearchModalEnhancedState extends State<SearchModalEnhanced> {
                           children: [
                             Text(
                               'Search',
-                              style: theme.headlineMedium.override(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 18,
+                              style: theme.titleMedium.override(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                                letterSpacing: -0.3,
                               ),
                             ),
-                            InkWell(
-                              onTap: () {
-                                widget.onClose?.call();
-                              },
-                              borderRadius: BorderRadius.circular(6),
-                              child: Container(
-                                padding: const EdgeInsets.all(6),
-                                child: Icon(
-                                  Icons.close,
-                                  size: 20,
-                                  color: theme.secondaryText,
+                            MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: GestureDetector(
+                                onTap: () {
+                                  widget.onClose?.call();
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: theme.primaryBackground.withValues(alpha: 0.6),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    Icons.close_rounded,
+                                    size: 18,
+                                    color: theme.secondaryText,
+                                  ),
                                 ),
                               ),
                             ),
