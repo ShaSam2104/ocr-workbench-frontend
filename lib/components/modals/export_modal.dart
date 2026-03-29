@@ -62,7 +62,7 @@ class _ExportModalState extends State<ExportModal> {
   String _selectedFormat = 'docx';
   bool _includeImages = true;
   bool _includeTranscripts = true;
-  bool _includePageBreaks = true;
+  bool _includePageBreaks = false;
   int? _selectedChapterId; // null for "All Chapters"
   bool _isExporting = false;
   String? _exportProgress;

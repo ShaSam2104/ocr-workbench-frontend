@@ -57,6 +57,12 @@ class _BookPageWidgetState extends State<BookPageWidget> {
       setState(() {
         _selectedChapterId = widget.selectedChapterId;
       });
+      // Reload chapters in case the selected chapter is newly created
+      // and not yet in the local list
+      if (widget.selectedChapterId != null &&
+          !_chapters.any((c) => c.id == widget.selectedChapterId)) {
+        _loadChapters();
+      }
     }
   }
 
@@ -423,7 +429,11 @@ class _BookPageWidgetState extends State<BookPageWidget> {
   }
 
   Widget _buildChapterContent() {
-    final chapter = _chapters.firstWhere((c) => c.id == _selectedChapterId);
+    final chapterMatch = _chapters.where((c) => c.id == _selectedChapterId);
+    if (chapterMatch.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final chapter = chapterMatch.first;
     
     return Column(
       children: [

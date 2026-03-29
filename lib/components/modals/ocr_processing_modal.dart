@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 
-class OcrProcessingModal extends StatefulWidget {
-  final Function(String customPrompt, String model) onProcessing;
+class OcrProcessingResult {
+  final String customPrompt;
+  final String model;
+  OcrProcessingResult({required this.customPrompt, required this.model});
+}
 
-  const OcrProcessingModal({
-    super.key,
-    required this.onProcessing,
-  });
+class OcrProcessingModal extends StatefulWidget {
+  const OcrProcessingModal({super.key});
 
   @override
   State<OcrProcessingModal> createState() => _OcrProcessingModalState();
@@ -122,11 +123,10 @@ class _OcrProcessingModalState extends State<OcrProcessingModal> {
                   const SizedBox(width: 12.0),
                   ElevatedButton(
                     onPressed: () {
-                      widget.onProcessing(
-                        _customPromptController.text,
-                        _selectedModel,
-                      );
-                      Navigator.pop(context);
+                      Navigator.pop(context, OcrProcessingResult(
+                        customPrompt: _customPromptController.text,
+                        model: _selectedModel,
+                      ));
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: FlutterFlowTheme.of(context).primary,

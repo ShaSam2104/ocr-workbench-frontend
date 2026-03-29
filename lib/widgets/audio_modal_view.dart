@@ -74,36 +74,37 @@ class _AudioModalViewState extends State<AudioModalView> {
   }
 
   Future<void> _processTranscription() async {
-    showDialog(
+    final result = await showDialog<TranscriptionProcessingResult>(
       context: context,
-      builder: (context) => TranscriptionProcessingModal(
-        onProcessing: (customPrompt, model, languageHint) async {
-          setState(() => _isProcessing = true);
-          try {
-            final token = currentAuthenticationToken ?? '';
-            final result = await OCRWorkbenchAPIGroup.transcribeAudiosCall.call(
-              audioIdsList: [widget.item.id],
-              model: model,
-              customPrompt: customPrompt,
-              languageHint: languageHint,
-              hTTPBearer: token,
-            );
-
-            if (result.succeeded) {
-              ToastManager.showSuccess('Transcription started');
-              widget.onUpdate();
-              Navigator.pop(context);
-            } else {
-              ToastManager.showError('Failed to start transcription');
-            }
-          } catch (e) {
-            ToastManager.showError('Error: $e');
-          } finally {
-            setState(() => _isProcessing = false);
-          }
-        },
-      ),
+      builder: (_) => const TranscriptionProcessingModal(),
     );
+    if (result == null || !mounted) return;
+    setState(() => _isProcessing = true);
+    try {
+      final token = currentAuthenticationToken ?? '';
+      final apiResult = await OCRWorkbenchAPIGroup.transcribeAudiosCall.call(
+        audioIdsList: [widget.item.id],
+        model: result.model,
+        customPrompt: result.customPrompt,
+        languageHint: result.languageHint,
+        hTTPBearer: token,
+      );
+
+      if (!mounted) return;
+      if (apiResult.succeeded) {
+        ToastManager.showSuccess('Transcription started');
+        widget.onUpdate();
+        // Return task_id so parent can poll for completion
+        final taskId = (apiResult.jsonBody as Map<String, dynamic>?)?['task_id'] as String?;
+        Navigator.pop(context, taskId);
+      } else {
+        ToastManager.showError('Failed to start transcription');
+      }
+    } catch (e) {
+      if (mounted) ToastManager.showError('Error: $e');
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
   }
 
   /// Convert single newlines to markdown line breaks

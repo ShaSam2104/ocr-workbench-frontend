@@ -36,7 +36,10 @@ class _ContentAreaState extends State<ContentArea> with TickerProviderStateMixin
   late FocusNode _focusNode;
   late ScrollController _imageScrollController;
   late ScrollController _audioScrollController;
-  
+
+  // Polling timer for processing status
+  Timer? _processingPollTimer;
+
   // Tab management
   int _selectedTab = 0; // 0 = images, 1 = audio
   
@@ -96,6 +99,8 @@ class _ContentAreaState extends State<ContentArea> with TickerProviderStateMixin
     super.didUpdateWidget(oldWidget);
     if (oldWidget.chapterId != widget.chapterId ||
         oldWidget.bookId != widget.bookId) {
+      _processingPollTimer?.cancel();
+      _processingPollTimer = null;
       _selectedIndices.clear();
       _imageSelectedIndices.clear();
       _audioSelectedIndices.clear();
@@ -112,6 +117,7 @@ class _ContentAreaState extends State<ContentArea> with TickerProviderStateMixin
 
   @override
   void dispose() {
+    _processingPollTimer?.cancel();
     _focusNode.dispose();
     _imageScrollController.dispose();
     _audioScrollController.dispose();
@@ -119,35 +125,88 @@ class _ContentAreaState extends State<ContentArea> with TickerProviderStateMixin
     super.dispose();
   }
 
-  Future<void> _loadImagesContent({bool loadMore = false}) async {
-    if (loadMore && (_imageIsLoadingMore || !_imageHasMore)) return;
-    
-    try {
-      setState(() {
-        if (loadMore) {
-          _imageIsLoadingMore = true;
-        } else {
-          _imageIsLoading = true;
-          _imageCurrentPage = 1;
-          _imageItems.clear();
+  /// Poll a backend task by task_id until completed/failed, then reload content.
+  void _pollTask(String taskId, {required bool isOcr}) {
+    _processingPollTimer?.cancel();
+    _processingPollTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      if (!mounted) {
+        _processingPollTimer?.cancel();
+        _processingPollTimer = null;
+        return;
+      }
+
+      final token = currentAuthenticationToken ?? '';
+      final result = isOcr
+          ? await OCRWorkbenchAPIGroup.getOcrStatusCall.call(
+              taskId: taskId,
+              hTTPBearer: token,
+            )
+          : await OCRWorkbenchAPIGroup.getTranscriptionStatusCall.call(
+              taskId: taskId,
+              hTTPBearer: token,
+            );
+
+      if (!mounted) return;
+
+      if (result.succeeded) {
+        final body = result.jsonBody as Map<String, dynamic>?;
+        final status = body?['status'] as String?;
+        if (status == 'completed' || status == 'failed') {
+          _processingPollTimer?.cancel();
+          _processingPollTimer = null;
+          // Reload content to show OCR/transcription results
+          if (isOcr) {
+            _loadImagesContent(silent: true);
+          } else {
+            _loadAudiosContent(silent: true);
+          }
         }
-      });
+      } else {
+        // Status endpoint failed (e.g. task not found) — stop polling and reload
+        _processingPollTimer?.cancel();
+        _processingPollTimer = null;
+        if (isOcr) {
+          _loadImagesContent(silent: true);
+        } else {
+          _loadAudiosContent(silent: true);
+        }
+      }
+    });
+  }
+
+  Future<void> _loadImagesContent({bool loadMore = false, bool silent = false}) async {
+    if (loadMore && (_imageIsLoadingMore || !_imageHasMore)) return;
+
+    try {
+      if (!silent) {
+        setState(() {
+          if (loadMore) {
+            _imageIsLoadingMore = true;
+          } else {
+            _imageIsLoading = true;
+            _imageCurrentPage = 1;
+            _imageItems.clear();
+          }
+        });
+      }
 
       final token = currentAuthenticationToken ?? '';
       final result = await OCRWorkbenchAPIGroup.getChapterImagesCall.call(
         bookId: widget.bookId,
         chapterId: widget.chapterId,
-        page: _imageCurrentPage,
+        page: silent ? 1 : _imageCurrentPage,
         pageSize: 20,
         hTTPBearer: token,
       );
+
+      if (!mounted) return;
 
       final newItems = <ContentItem>[];
 
       if (result.succeeded) {
         final responseData = result.jsonBody as Map<String, dynamic>?;
         final imagesData = responseData?['images'] as Map<String, dynamic>?;
-        
+
         if (imagesData != null) {
           final imageItems = imagesData['items'] as List<dynamic>? ?? [];
           for (var img in imageItems) {
@@ -165,74 +224,81 @@ class _ContentAreaState extends State<ContentArea> with TickerProviderStateMixin
               rawOcrText: ocrTextMap?['raw_text_with_formatting'] as String?,
             ));
           }
-          
+
           _imageTotalItems = imagesData['total'] as int? ?? 0;
-          final loadedCount = _imageItems.length + newItems.length;
-          _imageHasMore = loadedCount < _imageTotalItems;
+          if (!silent) {
+            final loadedCount = _imageItems.length + newItems.length;
+            _imageHasMore = loadedCount < _imageTotalItems;
+          }
         }
       }
 
       newItems.sort((a, b) => a.sequence.compareTo(b.sequence));
 
       setState(() {
-        if (loadMore) {
+        if (silent) {
+          _imageItems = newItems;
+        } else if (loadMore) {
           _imageItems.addAll(newItems);
           _imageIsLoadingMore = false;
         } else {
           _imageItems = newItems;
           _imageIsLoading = false;
         }
-        if (_imageHasMore) _imageCurrentPage++;
+        if (!silent && _imageHasMore) _imageCurrentPage++;
       });
     } catch (e) {
       print('Error loading images: $e');
-      setState(() {
-        _imageIsLoading = false;
-        _imageIsLoadingMore = false;
-      });
+      if (!silent) {
+        setState(() {
+          _imageIsLoading = false;
+          _imageIsLoadingMore = false;
+        });
+      }
     }
   }
 
-  Future<void> _loadAudiosContent({bool loadMore = false}) async {
+  Future<void> _loadAudiosContent({bool loadMore = false, bool silent = false}) async {
     if (loadMore && (_audioIsLoadingMore || !_audioHasMore)) return;
-    
+
     try {
-      setState(() {
-        if (loadMore) {
-          _audioIsLoadingMore = true;
-        } else {
-          _audioIsLoading = true;
-          _audioCurrentPage = 1;
-          _audioItems.clear();
-        }
-      });
+      if (!silent) {
+        setState(() {
+          if (loadMore) {
+            _audioIsLoadingMore = true;
+          } else {
+            _audioIsLoading = true;
+            _audioCurrentPage = 1;
+            _audioItems.clear();
+          }
+        });
+      }
 
       final token = currentAuthenticationToken ?? '';
 
       final result = await OCRWorkbenchAPIGroup.getChapterAudiosCall.call(
         bookId: widget.bookId,
         chapterId: widget.chapterId,
-        page: _audioCurrentPage,
+        page: silent ? 1 : _audioCurrentPage,
         pageSize: 20,
         hTTPBearer: token,
       );
+
+      if (!mounted) return;
+
       final newItems = <ContentItem>[];
 
       if (result.succeeded) {
         final responseData = result.jsonBody as Map<String, dynamic>?;
-        
         final audiosData = responseData?['audios'] as Map<String, dynamic>?;
-        
+
         if (audiosData != null) {
           final audioItems = audiosData['items'] as List<dynamic>? ?? [];
-          print('Audio items count: ${audioItems.length}');
-          print('Total from API: ${audiosData['total']}');
-          
           for (var audio in audioItems) {
             try {
               final audioMap = audio as Map<String, dynamic>;
               final transcriptMap = audioMap['transcript'] as Map<String, dynamic>?;
-              final newItem = ContentItem(
+              newItems.add(ContentItem(
                 id: audioMap['id'] as int,
                 name: 'Audio ${audioMap['sequence_number']}',
                 sequence: audioMap['sequence_number'] as int? ?? 0,
@@ -242,46 +308,42 @@ class _ContentAreaState extends State<ContentArea> with TickerProviderStateMixin
                 transcriptionStatus: audioMap['transcription_status'] as String? ?? 'pending',
                 transcript: transcriptMap?['edited_text_with_formatting'] as String?,
                 rawTranscript: transcriptMap?['raw_text_with_formatting'] as String?,
-              );
-              newItems.add(newItem);
+              ));
             } catch (e) {
               print('Error parsing audio item: $e');
             }
           }
-          
+
           _audioTotalItems = audiosData['total'] as int? ?? 0;
-          final loadedCount = _audioItems.length + newItems.length;
-          _audioHasMore = loadedCount < _audioTotalItems;
-          print('Total items: $_audioTotalItems, Loaded: $loadedCount, Has more: $_audioHasMore');
-        } else {
-          print('ERROR: audiosData is null');
+          if (!silent) {
+            final loadedCount = _audioItems.length + newItems.length;
+            _audioHasMore = loadedCount < _audioTotalItems;
+          }
         }
-      } else {
-        print('ERROR: API call failed with status ${result.statusCode}');
-        print('Error response: ${result.jsonBody}');
       }
 
       newItems.sort((a, b) => a.sequence.compareTo(b.sequence));
 
       setState(() {
-        if (loadMore) {
+        if (silent) {
+          _audioItems = newItems;
+        } else if (loadMore) {
           _audioItems.addAll(newItems);
           _audioIsLoadingMore = false;
         } else {
           _audioItems = newItems;
           _audioIsLoading = false;
         }
-        if (_audioHasMore) _audioCurrentPage++;
-        print('After setState: _audioItems.length = ${_audioItems.length}');
+        if (!silent && _audioHasMore) _audioCurrentPage++;
       });
-    } catch (e, st) {
-      print('===== AUDIO LOAD ERROR =====');
-      print('Error: $e');
-      print('Stack trace: $st');
-      setState(() {
-        _audioIsLoading = false;
-        _audioIsLoadingMore = false;
-      });
+    } catch (e) {
+      print('Error loading audios: $e');
+      if (!silent) {
+        setState(() {
+          _audioIsLoading = false;
+          _audioIsLoadingMore = false;
+        });
+      }
     }
   }
 
@@ -697,68 +759,58 @@ class _ContentAreaState extends State<ContentArea> with TickerProviderStateMixin
 
   Future<void> _processItem(ContentItem item) async {
     if (item.type == ContentType.image) {
-      showDialog(
+      final result = await showDialog<OcrProcessingResult>(
         context: context,
-        builder: (context) => OcrProcessingModal(
-          onProcessing: (customPrompt, model) async {
-            try {
-              final token = currentAuthenticationToken ?? '';
-              final result = await OCRWorkbenchAPIGroup.processImagesOcrCall.call(
-                imageIdsList: [item.id],
-                model: model,
-                customPrompt: customPrompt,
-                hTTPBearer: token,
-              );
-
-              if (result.succeeded) {
-                ToastManager.showSuccess('OCR processing started for ${item.name}');
-                await _loadImagesContent();
-              } else {
-                throw Exception('Failed to start OCR processing');
-              }
-            } catch (e) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Error: ${e.toString()}'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          },
-        ),
+        builder: (_) => const OcrProcessingModal(),
       );
+      if (result == null || !mounted) return;
+      try {
+        final token = currentAuthenticationToken ?? '';
+        final apiResult = await OCRWorkbenchAPIGroup.processImagesOcrCall.call(
+          imageIdsList: [item.id],
+          model: result.model,
+          customPrompt: result.customPrompt,
+          hTTPBearer: token,
+        );
+        if (!mounted) return;
+        if (apiResult.succeeded) {
+          ToastManager.showSuccess('OCR processing started for ${item.name}');
+          _loadImagesContent();
+          final taskId = (apiResult.jsonBody as Map<String, dynamic>?)?['task_id'] as String?;
+          if (taskId != null) _pollTask(taskId, isOcr: true);
+        } else {
+          ToastManager.showError('Failed to start OCR processing');
+        }
+      } catch (e) {
+        if (mounted) ToastManager.showError('Error: $e');
+      }
     } else {
-      showDialog(
+      final result = await showDialog<TranscriptionProcessingResult>(
         context: context,
-        builder: (context) => TranscriptionProcessingModal(
-          onProcessing: (customPrompt, model, languageHint) async {
-            try {
-              final token = currentAuthenticationToken ?? '';
-              final result = await OCRWorkbenchAPIGroup.transcribeAudiosCall.call(
-                audioIdsList: [item.id],
-                model: model,
-                customPrompt: customPrompt,
-                languageHint: languageHint,
-                hTTPBearer: token,
-              );
-
-              if (result.succeeded) {
-                ToastManager.showSuccess('Transcription started for ${item.name}');
-                await _loadAudiosContent();
-              } else {
-                throw Exception('Failed to start transcription');
-              }
-            } catch (e) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Error: ${e.toString()}'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          },
-        ),
+        builder: (_) => const TranscriptionProcessingModal(),
       );
+      if (result == null || !mounted) return;
+      try {
+        final token = currentAuthenticationToken ?? '';
+        final apiResult = await OCRWorkbenchAPIGroup.transcribeAudiosCall.call(
+          audioIdsList: [item.id],
+          model: result.model,
+          customPrompt: result.customPrompt,
+          languageHint: result.languageHint,
+          hTTPBearer: token,
+        );
+        if (!mounted) return;
+        if (apiResult.succeeded) {
+          ToastManager.showSuccess('Transcription started for ${item.name}');
+          _loadAudiosContent();
+          final taskId = (apiResult.jsonBody as Map<String, dynamic>?)?['task_id'] as String?;
+          if (taskId != null) _pollTask(taskId, isOcr: false);
+        } else {
+          ToastManager.showError('Failed to start transcription');
+        }
+      } catch (e) {
+        if (mounted) ToastManager.showError('Error: $e');
+      }
     }
   }
 
@@ -1022,28 +1074,42 @@ class _ContentAreaState extends State<ContentArea> with TickerProviderStateMixin
     }
   }
 
-  void _showImageModal(ContentItem item) {
-    showDialog(
+  void _showImageModal(ContentItem item) async {
+    final taskId = await showDialog<String?>(
       context: context,
-      builder: (context) => ImageModalView(
+      builder: (dialogContext) => ImageModalView(
         item: item,
         bookId: widget.bookId,
         chapterId: widget.chapterId,
-        onUpdate: widget.onItemsChanged,
+        onUpdate: () {
+          widget.onItemsChanged();
+        },
       ),
     );
+    if (!mounted) return;
+    // Always reload content after dialog closes
+    _loadImagesContent();
+    // If OCR was started, poll for completion using the task_id
+    if (taskId != null) _pollTask(taskId, isOcr: true);
   }
 
-  void _showAudioModal(ContentItem item) {
-    showDialog(
+  void _showAudioModal(ContentItem item) async {
+    final taskId = await showDialog<String?>(
       context: context,
-      builder: (context) => AudioModalView(
+      builder: (dialogContext) => AudioModalView(
         item: item,
         bookId: widget.bookId,
         chapterId: widget.chapterId,
-        onUpdate: widget.onItemsChanged,
+        onUpdate: () {
+          widget.onItemsChanged();
+        },
       ),
     );
+    if (!mounted) return;
+    // Always reload content after dialog closes
+    _loadAudiosContent();
+    // If transcription was started, poll for completion using the task_id
+    if (taskId != null) _pollTask(taskId, isOcr: false);
   }
 
   @override

@@ -517,18 +517,24 @@ class UpdateChapterCall {
     int? bookId,
     int? chapterId,
     String? hTTPBearer = '',
-    String? name = '',
-    String? description = '',
+    String? name,
+    String? description,
     int? sequenceOrder,
   }) async {
     final baseUrl = OCRWorkbenchAPIGroup.getBaseUrl();
 
-    final ffApiRequestBody = '''
-{
-  "name": "${escapeStringForJson(name)}",
-  "description": "${escapeStringForJson(description)}",
-  "sequence_order": ${sequenceOrder}
-}''';
+    final fields = <String>[];
+    if (name != null && name.isNotEmpty) {
+      fields.add('"name": "${escapeStringForJson(name)}"');
+    }
+    if (description != null) {
+      fields.add('"description": "${escapeStringForJson(description)}"');
+    }
+    if (sequenceOrder != null) {
+      fields.add('"sequence_order": $sequenceOrder');
+    }
+    final ffApiRequestBody = '{${fields.join(', ')}}';
+
     return ApiManager.instance.makeApiCall(
       callName: 'Update Chapter',
       apiUrl: '${baseUrl}/books/${bookId}/chapters/${chapterId}',

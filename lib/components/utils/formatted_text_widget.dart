@@ -2,6 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:markdown/markdown.dart' as md;
 import '/flutter_flow/flutter_flow_theme.dart';
 
+/// Custom inline syntax to parse <u>...</u> HTML tags as underline elements.
+class _UnderlineSyntax extends md.InlineSyntax {
+  _UnderlineSyntax() : super(r'<u>(.*?)</u>');
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    final content = match.group(1)!;
+    final element = md.Element.text('u', content);
+    parser.addNode(element);
+    return true;
+  }
+}
+
 class FormattedTextWidget extends StatelessWidget {
   const FormattedTextWidget({
     super.key,
@@ -48,7 +61,11 @@ class FormattedTextWidget extends StatelessWidget {
     final spans = <InlineSpan>[];
 
     // Parse markdown inline elements from the text
-    final document = md.Document();
+    // Custom syntaxes for HTML tags not natively handled by the markdown parser
+    final document = md.Document(
+      inlineSyntaxes: [_UnderlineSyntax()],
+      extensionSet: md.ExtensionSet.gitHubFlavored,
+    );
     final parser = md.InlineParser(text, document);
     final nodes = parser.parse();
 

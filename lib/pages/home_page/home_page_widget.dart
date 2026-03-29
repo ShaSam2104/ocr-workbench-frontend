@@ -38,6 +38,7 @@ class _HomePageWidgetState extends State<HomePageWidget> {
   final GlobalKey<BookSidebarEnhancedState> _sidebarKey = GlobalKey();
   int? _selectedBookId;
   int? _selectedChapterId;
+  int _chapterRefreshCounter = 0;
 
   String get _modifierKey => defaultTargetPlatform == TargetPlatform.macOS ? 'Cmd' : 'Ctrl';
 
@@ -202,6 +203,11 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                           builder: (context) => const KeyboardShortcutsModal(),
                         );
                       },
+                      onChapterCreated: () {
+                        setState(() {
+                          _chapterRefreshCounter++;
+                        });
+                      },
                     ),
                     // Main Content Area
                     Expanded(
@@ -212,6 +218,7 @@ class _HomePageWidgetState extends State<HomePageWidget> {
                           Expanded(
                             child: _selectedBookId != null
                                 ? BookPageWidget(
+                                    key: ValueKey('book_${_selectedBookId}_$_chapterRefreshCounter'),
                                     bookId: _selectedBookId!,
                                     selectedChapterId: _selectedChapterId,
                                     onChapterCreated: () {

@@ -8,6 +8,7 @@ import '/auth/custom_auth/auth_util.dart';
 import '/backend/schema/book.dart';
 import '/backend/schema/chapter.dart';
 import '/components/modals/new_chapter_dialog.dart';
+import '/components/modals/edit_chapter_dialog.dart';
 import '/toasts/toast_manager.dart';
 import '/app_state.dart';
 import '/app_constants.dart';
@@ -27,6 +28,7 @@ class BookSidebarEnhanced extends StatefulWidget {
     required this.onShowHelp,
     this.selectedBookId,
     this.selectedChapterId,
+    this.onChapterCreated,
   });
 
   final Function(int bookId) onBookSelected;
@@ -40,6 +42,7 @@ class BookSidebarEnhanced extends StatefulWidget {
   final VoidCallback onShowHelp;
   final int? selectedBookId;
   final int? selectedChapterId;
+  final VoidCallback? onChapterCreated;
 
   @override
   State<BookSidebarEnhanced> createState() => BookSidebarEnhancedState();
@@ -438,8 +441,10 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
             _toggleBookExpansion(bookId, null);
             _toggleBookExpansion(bookId, null);
           }
-          
+
           await _loadBooks();
+          // Notify parent so BookPageWidget can refresh its chapter list
+          widget.onChapterCreated?.call();
         }
       } else {
         throw Exception('Failed to delete chapter');
@@ -1100,13 +1105,12 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
                       ),
                     ),
                   const SizedBox(width: 4.0),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 18.0),
-                    color: FlutterFlowTheme.of(context).error,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                    onPressed: () => _deleteBook(item.id, item.name),
+                  _SidebarActionIcon(
+                    icon: Icons.delete_outline_rounded,
                     tooltip: 'Delete book',
+                    onPressed: () => _deleteBook(item.id, item.name),
+                    isDestructive: true,
+                    size: 16.0,
                   ),
                 ],
               ),
@@ -1123,79 +1127,58 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
     required bool isFocused,
     required bool isSelected,
   }) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      curve: Curves.easeOut,
+    return _HoverRevealRow(
+      isSelected: isSelected,
+      isFocused: isFocused,
       margin: const EdgeInsets.only(left: 24.0, right: 8.0, top: 1.0, bottom: 1.0),
-      decoration: BoxDecoration(
-        color: isSelected
-            ? FlutterFlowTheme.of(context).primary.withValues(alpha: 0.08)
-            : isFocused
-                ? FlutterFlowTheme.of(context).primaryBackground.withValues(alpha: 0.5)
-                : Colors.transparent,
-        borderRadius: BorderRadius.circular(8.0),
-      ),
-      child: InkWell(
-        onTap: () {
-          if (item.bookId != null) {
-            widget.onChapterSelected(item.bookId!, item.id);
-            setState(() {
-              _selectedBookId = item.bookId;
-              _selectedChapterId = item.id;
-            });
-          }
-        },
-        highlightColor: Colors.transparent,
-        splashColor: Colors.transparent,
-        borderRadius: BorderRadius.circular(8.0),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 4.0,
-                    height: 4.0,
-                    margin: const EdgeInsets.only(right: 10.0),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isSelected
-                          ? FlutterFlowTheme.of(context).primary
-                          : FlutterFlowTheme.of(context).secondaryText.withValues(alpha: 0.4),
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      item.name,
-                      style: FlutterFlowTheme.of(context).labelMedium.override(
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                            fontSize: 13.0,
-                            color: isSelected
-                                ? FlutterFlowTheme.of(context).primaryText
-                                : FlutterFlowTheme.of(context).secondaryText,
-                          ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded, size: 14.0),
-                    color: FlutterFlowTheme.of(context).secondaryText.withValues(alpha: 0.5),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                    onPressed: () => _deleteChapter(item.id, item.name, item.bookId!),
-                    tooltip: 'Delete chapter',
-                  ),
-                ],
-              ),
-              // Removed image/audio count badges - not returned by backend
-            ],
-          ),
+      borderRadius: BorderRadius.circular(8.0),
+      selectedColor: FlutterFlowTheme.of(context).primary.withValues(alpha: 0.08),
+      focusedColor: FlutterFlowTheme.of(context).primaryBackground.withValues(alpha: 0.5),
+      onTap: () {
+        if (item.bookId != null) {
+          widget.onChapterSelected(item.bookId!, item.id);
+          setState(() {
+            _selectedBookId = item.bookId;
+            _selectedChapterId = item.id;
+          });
+        }
+      },
+      leading: Container(
+        width: 4.0,
+        height: 4.0,
+        margin: const EdgeInsets.only(right: 10.0),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: isSelected
+              ? FlutterFlowTheme.of(context).primary
+              : FlutterFlowTheme.of(context).secondaryText.withValues(alpha: 0.4),
         ),
       ),
+      label: Text(
+        item.name,
+        style: FlutterFlowTheme.of(context).labelMedium.override(
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+              fontSize: 13.0,
+              color: isSelected
+                  ? FlutterFlowTheme.of(context).primaryText
+                  : FlutterFlowTheme.of(context).secondaryText,
+            ),
+        overflow: TextOverflow.ellipsis,
+      ),
+      actions: [
+        _SidebarActionIcon(
+          icon: Icons.edit_outlined,
+          tooltip: 'Rename chapter',
+          onPressed: () => _showEditChapterDialog(item.id, item.name, item.bookId!),
+        ),
+        const SizedBox(width: 2.0),
+        _SidebarActionIcon(
+          icon: Icons.delete_outline_rounded,
+          tooltip: 'Delete chapter',
+          onPressed: () => _deleteChapter(item.id, item.name, item.bookId!),
+          isDestructive: true,
+        ),
+      ],
     );
   }
 
@@ -1250,6 +1233,29 @@ class BookSidebarEnhancedState extends State<BookSidebarEnhanced> {
           });
           // Reload chapters for this book
           _toggleBookExpansion(bookId, null);
+          // Notify parent so BookPageWidget can refresh its chapter list
+          widget.onChapterCreated?.call();
+        },
+      ),
+    );
+  }
+
+  void _showEditChapterDialog(int chapterId, String currentName, int bookId) {
+    showDialog(
+      context: context,
+      builder: (context) => EditChapterDialog(
+        bookId: bookId,
+        chapterId: chapterId,
+        currentName: currentName,
+        onSuccess: () {
+          // Clear the cache for this book and reload its chapters
+          setState(() {
+            _chapterCache.remove(bookId);
+          });
+          // Reload chapters for this book
+          _toggleBookExpansion(bookId, null);
+          // Notify parent so BookPageWidget can refresh its chapter list
+          widget.onChapterCreated?.call();
         },
       ),
     );
@@ -1692,4 +1698,153 @@ class FocusManager {
   }
 
   int get currentFocus => _currentFocus;
+}
+
+/// A small icon button for sidebar actions (edit, delete) that shows a hover
+/// background and optional destructive (red) color on hover.
+class _SidebarActionIcon extends StatefulWidget {
+  const _SidebarActionIcon({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+    this.isDestructive = false,
+    this.size = 14.0,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+  final bool isDestructive;
+  final double size;
+
+  @override
+  State<_SidebarActionIcon> createState() => _SidebarActionIconState();
+}
+
+class _SidebarActionIconState extends State<_SidebarActionIcon> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    final hoverColor = widget.isDestructive
+        ? theme.error
+        : theme.primaryText;
+    final idleColor = theme.secondaryText.withValues(alpha: 0.4);
+
+    return Tooltip(
+      message: widget.tooltip,
+      waitDuration: const Duration(milliseconds: 400),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit: (_) => setState(() => _hovering = false),
+        child: GestureDetector(
+          onTap: widget.onPressed,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
+            width: 26.0,
+            height: 26.0,
+            decoration: BoxDecoration(
+              color: _hovering
+                  ? (widget.isDestructive
+                      ? theme.error.withValues(alpha: 0.1)
+                      : theme.secondaryText.withValues(alpha: 0.1))
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(6.0),
+            ),
+            child: Center(
+              child: Icon(
+                widget.icon,
+                size: widget.size,
+                color: _hovering ? hoverColor : idleColor,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A row widget that reveals its [actions] on hover for a clean sidebar look.
+/// Used for chapter items (and can be reused for book items).
+class _HoverRevealRow extends StatefulWidget {
+  const _HoverRevealRow({
+    required this.isSelected,
+    required this.isFocused,
+    required this.margin,
+    required this.borderRadius,
+    required this.selectedColor,
+    required this.focusedColor,
+    required this.onTap,
+    required this.leading,
+    required this.label,
+    required this.actions,
+  });
+
+  final bool isSelected;
+  final bool isFocused;
+  final EdgeInsets margin;
+  final BorderRadius borderRadius;
+  final Color selectedColor;
+  final Color focusedColor;
+  final VoidCallback onTap;
+  final Widget leading;
+  final Widget label;
+  final List<Widget> actions;
+
+  @override
+  State<_HoverRevealRow> createState() => _HoverRevealRowState();
+}
+
+class _HoverRevealRowState extends State<_HoverRevealRow> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final showActions = _hovering || widget.isSelected;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+        margin: widget.margin,
+        decoration: BoxDecoration(
+          color: widget.isSelected
+              ? widget.selectedColor
+              : widget.isFocused || _hovering
+                  ? widget.focusedColor
+                  : Colors.transparent,
+          borderRadius: widget.borderRadius,
+        ),
+        child: InkWell(
+          onTap: widget.onTap,
+          highlightColor: Colors.transparent,
+          splashColor: Colors.transparent,
+          borderRadius: widget.borderRadius,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
+            child: Row(
+              children: [
+                widget.leading,
+                Expanded(child: widget.label),
+                AnimatedOpacity(
+                  opacity: showActions ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 150),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: widget.actions,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

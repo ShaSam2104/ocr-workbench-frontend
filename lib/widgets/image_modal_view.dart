@@ -103,35 +103,36 @@ class _ImageModalViewState extends State<ImageModalView> {
   }
 
   Future<void> _processOCR() async {
-    showDialog(
+    final result = await showDialog<OcrProcessingResult>(
       context: context,
-      builder: (context) => OcrProcessingModal(
-        onProcessing: (customPrompt, model) async {
-          setState(() => _isProcessing = true);
-          try {
-            final token = currentAuthenticationToken ?? '';
-            final result = await OCRWorkbenchAPIGroup.processImagesOcrCall.call(
-              imageIdsList: [widget.item.id],
-              model: model,
-              customPrompt: customPrompt,
-              hTTPBearer: token,
-            );
-
-            if (result.succeeded) {
-              ToastManager.showSuccess('OCR processing started');
-              widget.onUpdate();
-              Navigator.pop(context);
-            } else {
-              ToastManager.showError('Failed to start OCR processing');
-            }
-          } catch (e) {
-            ToastManager.showError('Error: $e');
-          } finally {
-            setState(() => _isProcessing = false);
-          }
-        },
-      ),
+      builder: (_) => const OcrProcessingModal(),
     );
+    if (result == null || !mounted) return;
+    setState(() => _isProcessing = true);
+    try {
+      final token = currentAuthenticationToken ?? '';
+      final apiResult = await OCRWorkbenchAPIGroup.processImagesOcrCall.call(
+        imageIdsList: [widget.item.id],
+        model: result.model,
+        customPrompt: result.customPrompt,
+        hTTPBearer: token,
+      );
+
+      if (!mounted) return;
+      if (apiResult.succeeded) {
+        ToastManager.showSuccess('OCR processing started');
+        widget.onUpdate();
+        // Return task_id so parent can poll for completion
+        final taskId = (apiResult.jsonBody as Map<String, dynamic>?)?['task_id'] as String?;
+        Navigator.pop(context, taskId);
+      } else {
+        ToastManager.showError('Failed to start OCR processing');
+      }
+    } catch (e) {
+      if (mounted) ToastManager.showError('Error: $e');
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
   }
 
   @override

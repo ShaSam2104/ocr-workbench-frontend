@@ -2,14 +2,19 @@ import 'package:flutter/material.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/enums/language.dart';
 
-class TranscriptionProcessingModal extends StatefulWidget {
-  final Function(String customPrompt, String model, String languageHint)
-      onProcessing;
-
-  const TranscriptionProcessingModal({
-    super.key,
-    required this.onProcessing,
+class TranscriptionProcessingResult {
+  final String customPrompt;
+  final String model;
+  final String languageHint;
+  TranscriptionProcessingResult({
+    required this.customPrompt,
+    required this.model,
+    required this.languageHint,
   });
+}
+
+class TranscriptionProcessingModal extends StatefulWidget {
+  const TranscriptionProcessingModal({super.key});
 
   @override
   State<TranscriptionProcessingModal> createState() =>
@@ -168,12 +173,11 @@ class _TranscriptionProcessingModalState
                   const SizedBox(width: 12.0),
                   ElevatedButton(
                     onPressed: () {
-                      widget.onProcessing(
-                        _customPromptController.text,
-                        _selectedModel,
-                        _selectedLanguage.code,
-                      );
-                      Navigator.pop(context);
+                      Navigator.pop(context, TranscriptionProcessingResult(
+                        customPrompt: _customPromptController.text,
+                        model: _selectedModel,
+                        languageHint: _selectedLanguage.code,
+                      ));
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: FlutterFlowTheme.of(context).primary,
